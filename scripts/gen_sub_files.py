@@ -37,7 +37,7 @@ GPU_CONFIG = {exp: ("3090,rtx8000,3090_risk", "gpu:4", "120G") for exp in [
     "gemma_brit", "llama_brit", "qwen_brit",
 ]}
 
-GSPO_GPU_CONFIG = {exp: ("a100", "gpu:1", "80G") for exp in [
+GSPO_GPU_CONFIG = {exp: ("a100", "gpu:2", "160G") for exp in [
     "gemma", "llama", "qwen",
     "gemma_aus", "llama_aus", "qwen_aus",
     "gemma_ind", "llama_ind", "qwen_ind",
