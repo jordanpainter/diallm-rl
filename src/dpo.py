@@ -288,23 +288,6 @@ def main() -> None:
     train_ds = train_ds.remove_columns([c for c in train_ds.column_names if c not in keep_cols])
     eval_ds = eval_ds.remove_columns([c for c in eval_ds.column_names if c not in keep_cols])
 
-    # Gemma 3 (and other vision models): TRL's DPOTrainer detects the Gemma3Processor
-    # and expects an "images" column. PIL Images can't be stored directly in PyArrow,
-    # so store as PNG bytes then cast to the datasets Image feature so it decodes back
-    # to a PIL Image when accessed by the processor.
-    if hasattr(processor, "tokenizer"):
-        import io
-        from PIL import Image as PILImage
-        from datasets import Image as DsImage
-        buf = io.BytesIO()
-        PILImage.new("RGB", (1, 1), color=(0, 0, 0)).save(buf, format="PNG")
-        img_bytes = buf.getvalue()
-        train_ds = train_ds.add_column("images", [img_bytes] * len(train_ds))
-        train_ds = train_ds.cast_column("images", DsImage())
-        eval_ds = eval_ds.add_column("images", [img_bytes] * len(eval_ds))
-        eval_ds = eval_ds.cast_column("images", DsImage())
-        logger.info("Added dummy images column for vision processor (%s)", type(processor).__name__)
-
     peft_cfg = cfg.get("peft", {})
     lora_cfg = None
     if bool(peft_cfg.get("enabled", True)):
@@ -321,6 +304,15 @@ def main() -> None:
 
     logger.info("model device=%s dtype=%s", next(model.parameters()).device, next(model.parameters()).dtype)
 
+    # TRL DPOTrainer routes to vision processing based on model.config.model_type.
+    # Gemma 3 is multimodal so TRL expects an images column and a Processor — but
+    # we are doing text-only DPO. Temporarily override model_type so TRL takes the
+    # text-only path, then restore it before saving so the checkpoint is correct.
+    _original_model_type = model.config.model_type
+    if _original_model_type == "gemma3":
+        model.config.model_type = "gemma2"
+        logger.info("Overriding model_type gemma3→gemma2 for TRL text-only DPO path")
+
     trainer = DPOTrainer(
         model=model,
         args=dpo_args,
@@ -329,6 +321,8 @@ def main() -> None:
         processing_class=processor,
         peft_config=lora_cfg,
     )
+
+    model.config.model_type = _original_model_type
 
     trainer.train()
 
