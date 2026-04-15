@@ -18,8 +18,8 @@ ALGORITHMS = ["gspo", "grpo", "dpo"]
 
 WANDB_PROJECTS = {
     # (algorithm, suffix)
-    ("gspo", "all"):    "gspo-all",
-    ("gspo", "narrow"): "gspo-narrow",
+    ("gspo", "all"):    "gspo-all-new",
+    ("gspo", "narrow"): "gspo-narrow-new",
     ("grpo", "all"):    "grpo-all",
     ("grpo", "narrow"): "grpo-narrow",
     ("dpo",  "all"):    "dpo-all",
@@ -28,9 +28,16 @@ WANDB_PROJECTS = {
 
 BROAD_EXPERIMENTS = {"gemma", "llama", "qwen"}
 
-# Per-experiment GPU partitioning for GRPO/GSPO: (partition, gres, mem)
+# Per-experiment GPU partitioning for GRPO: (partition, gres, mem)
 # 4x RTX 3090 (24GB each = 96GB total) via device_map="auto" model parallelism
 GPU_CONFIG = {exp: ("3090,rtx8000,3090_risk", "gpu:4", "120G") for exp in [
+    "gemma", "llama", "qwen",
+    "gemma_aus", "llama_aus", "qwen_aus",
+    "gemma_ind", "llama_ind", "qwen_ind",
+    "gemma_brit", "llama_brit", "qwen_brit",
+]}
+
+GSPO_GPU_CONFIG = {exp: ("a100", "gpu:1", "80G") for exp in [
     "gemma", "llama", "qwen",
     "gemma_aus", "llama_aus", "qwen_aus",
     "gemma_ind", "llama_ind", "qwen_ind",
@@ -60,7 +67,12 @@ def make_sub(algorithm, exp_name):
     wandb_name = f"{algorithm} {exp_name.replace('_', ' ')}"
     config_path = f"$REPO/configs/{algorithm}/{exp_name}.json"
     run_module = get_run_module(algorithm)
-    config = DPO_GPU_CONFIG[exp_name] if algorithm == "dpo" else GPU_CONFIG[exp_name]
+    if algorithm == "dpo":
+        config = DPO_GPU_CONFIG[exp_name]
+    elif algorithm == "gspo":
+        config = GSPO_GPU_CONFIG[exp_name]
+    else:
+        config = GPU_CONFIG[exp_name]
     partition, gres, mem = config
 
     return f"""#!/bin/bash
