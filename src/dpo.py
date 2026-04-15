@@ -288,6 +288,14 @@ def main() -> None:
     train_ds = train_ds.remove_columns([c for c in train_ds.column_names if c not in keep_cols])
     eval_ds = eval_ds.remove_columns([c for c in eval_ds.column_names if c not in keep_cols])
 
+    # Gemma 3 (and other vision models): TRL's DPOTrainer detects the Gemma3Processor
+    # and expects an "images" column in the dataset. Add a None column so it falls
+    # through to text-only processing.
+    if hasattr(processor, "tokenizer"):
+        train_ds = train_ds.add_column("images", [None] * len(train_ds))
+        eval_ds = eval_ds.add_column("images", [None] * len(eval_ds))
+        logger.info("Added dummy images column for vision processor (%s)", type(processor).__name__)
+
     peft_cfg = cfg.get("peft", {})
     lora_cfg = None
     if bool(peft_cfg.get("enabled", True)):
