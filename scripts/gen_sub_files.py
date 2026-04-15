@@ -28,6 +28,22 @@ WANDB_PROJECTS = {
 
 BROAD_EXPERIMENTS = {"gemma", "llama", "qwen"}
 
+# Per-experiment GPU partitioning (partition, gres)
+GPU_CONFIG = {
+    "gemma":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
+    "gemma_aus":  ("a100",      "gpu:1"),
+    "gemma_brit": ("a100",      "gpu:1"),
+    "gemma_ind":  ("a100",      "gpu:1"),
+    "llama":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
+    "llama_aus":  ("3090_risk", "gpu:4"),
+    "llama_brit": ("3090_risk", "gpu:4"),
+    "llama_ind":  ("3090_risk", "gpu:4"),
+    "qwen":       ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
+    "qwen_aus":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
+    "qwen_brit":  ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
+    "qwen_ind":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
+}
+
 
 def get_wandb_project(algorithm, exp_name):
     suffix = "all" if exp_name in BROAD_EXPERIMENTS else "narrow"
@@ -44,11 +60,12 @@ def make_sub(algorithm, exp_name):
     wandb_name = f"{algorithm} {exp_name.replace('_', ' ')}"
     config_path = f"$REPO/configs/{algorithm}/{exp_name}.json"
     run_module = get_run_module(algorithm)
+    partition, gres = GPU_CONFIG[exp_name]
 
     return f"""#!/bin/bash
 #SBATCH --job-name={job_name}
-#SBATCH --partition=3090
-#SBATCH --gres=gpu:nvidia_geforce_rtx_3090:4
+#SBATCH --partition={partition}
+#SBATCH --gres={gres}
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=200G
 #SBATCH --time=48:00:00
@@ -91,6 +108,7 @@ export TEMP="$SCRATCH/tmp"
 export TMP="$SCRATCH/tmp"
 export TOKENIZERS_PARALLELISM=false
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTHONPATH="${{PYTHONPATH:-}}"
 
 echo "HOST=$(hostname)"
 echo "SIF=$SIF"
@@ -128,7 +146,7 @@ apptainer exec --nv "$SIF" bash -lc "
     cd '$REPO'
 
     echo 'PWD=' $(pwd)
-    echo 'PYTHONPATH=' $PYTHONPATH
+    echo 'PYTHONPATH=' \\$PYTHONPATH
     python3 --version
     python3 -c \\"import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), 'count', torch.cuda.device_count())\\"
     python3 -c \\"import os; print('CONFIG exists:', os.path.exists('$CONFIG'))\\"
