@@ -28,21 +28,29 @@ WANDB_PROJECTS = {
 
 BROAD_EXPERIMENTS = {"gemma", "llama", "qwen"}
 
-# Per-experiment GPU partitioning (partition, gres)
+# Per-experiment GPU partitioning for GRPO/GSPO: (partition, gres, mem)
 GPU_CONFIG = {
-    "gemma":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
-    "gemma_aus":  ("a100",      "gpu:1"),
-    "gemma_brit": ("a100",      "gpu:1"),
-    "gemma_ind":  ("a100",      "gpu:1"),
-    "llama":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
-    "llama_aus":  ("3090_risk", "gpu:4"),
-    "llama_brit": ("3090_risk", "gpu:4"),
-    "llama_ind":  ("3090_risk", "gpu:4"),
-    "qwen":       ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
-    "qwen_aus":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
-    "qwen_brit":  ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
-    "qwen_ind":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4"),
+    "gemma":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
+    "gemma_aus":  ("a100",      "gpu:1",                         "200G"),
+    "gemma_brit": ("a100",      "gpu:1",                         "200G"),
+    "gemma_ind":  ("a100",      "gpu:1",                         "200G"),
+    "llama":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
+    "llama_aus":  ("3090_risk", "gpu:4",                         "200G"),
+    "llama_brit": ("3090_risk", "gpu:4",                         "200G"),
+    "llama_ind":  ("3090_risk", "gpu:4",                         "200G"),
+    "qwen":       ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
+    "qwen_aus":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
+    "qwen_brit":  ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
+    "qwen_ind":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
 }
+
+# DPO: all on a single A100, lighter memory footprint (no reward models)
+DPO_GPU_CONFIG = {exp: ("a100", "gpu:1", "64G") for exp in [
+    "gemma", "llama", "qwen",
+    "gemma_aus", "llama_aus", "qwen_aus",
+    "gemma_ind", "llama_ind", "qwen_ind",
+    "gemma_brit", "llama_brit", "qwen_brit",
+]}
 
 
 def get_wandb_project(algorithm, exp_name):
@@ -60,14 +68,15 @@ def make_sub(algorithm, exp_name):
     wandb_name = f"{algorithm} {exp_name.replace('_', ' ')}"
     config_path = f"$REPO/configs/{algorithm}/{exp_name}.json"
     run_module = get_run_module(algorithm)
-    partition, gres = GPU_CONFIG[exp_name]
+    config = DPO_GPU_CONFIG[exp_name] if algorithm == "dpo" else GPU_CONFIG[exp_name]
+    partition, gres, mem = config
 
     return f"""#!/bin/bash
 #SBATCH --job-name={job_name}
 #SBATCH --partition={partition}
 #SBATCH --gres={gres}
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=200G
+#SBATCH --mem={mem}
 #SBATCH --time=48:00:00
 #SBATCH --output=/mnt/fast/nobackup/scratch4weeks/%u/repos/diallm-rl/logs/%x.%N.%j.out
 #SBATCH --error=/mnt/fast/nobackup/scratch4weeks/%u/repos/diallm-rl/logs/%x.%N.%j.err
