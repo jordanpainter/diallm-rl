@@ -51,7 +51,7 @@
     },
     "comet_model_name": "Unbabel/wmt22-comet-da",
     "comet_batch_size": 2,
-    "comet_force_cpu": true,
+    "comet_force_cpu": false,
     "comet_device_id": 0,
     "sim_model_name": "sentence-transformers/all-MiniLM-L6-v2",
     "verbose_examples": 2,
