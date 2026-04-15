@@ -289,13 +289,20 @@ def main() -> None:
     eval_ds = eval_ds.remove_columns([c for c in eval_ds.column_names if c not in keep_cols])
 
     # Gemma 3 (and other vision models): TRL's DPOTrainer detects the Gemma3Processor
-    # and expects an "images" column with real PIL images — passing None causes a
-    # KeyError on pixel_values. Add a dummy 1x1 black image per row.
+    # and expects an "images" column. PIL Images can't be stored directly in PyArrow,
+    # so store as PNG bytes then cast to the datasets Image feature so it decodes back
+    # to a PIL Image when accessed by the processor.
     if hasattr(processor, "tokenizer"):
-        from PIL import Image
-        dummy = Image.new("RGB", (1, 1), color=(0, 0, 0))
-        train_ds = train_ds.add_column("images", [dummy] * len(train_ds))
-        eval_ds = eval_ds.add_column("images", [dummy] * len(eval_ds))
+        import io
+        from PIL import Image as PILImage
+        from datasets import Image as DsImage
+        buf = io.BytesIO()
+        PILImage.new("RGB", (1, 1), color=(0, 0, 0)).save(buf, format="PNG")
+        img_bytes = buf.getvalue()
+        train_ds = train_ds.add_column("images", [img_bytes] * len(train_ds))
+        train_ds = train_ds.cast_column("images", DsImage())
+        eval_ds = eval_ds.add_column("images", [img_bytes] * len(eval_ds))
+        eval_ds = eval_ds.cast_column("images", DsImage())
         logger.info("Added dummy images column for vision processor (%s)", type(processor).__name__)
 
     peft_cfg = cfg.get("peft", {})
