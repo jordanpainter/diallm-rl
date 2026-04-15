@@ -90,6 +90,7 @@ COMMON_DPO_TRAINER_BASE = {
     "max_length": 2048,
     "max_prompt_length": 1024,
     "max_grad_norm": 1.0,
+    "precompute_ref_log_probs": True,
 }
 
 # ---------------------------------------------------------------------------
