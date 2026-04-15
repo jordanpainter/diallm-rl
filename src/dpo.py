@@ -26,7 +26,7 @@ from datasets import load_dataset as hf_load_dataset
 from datasets import load_from_disk
 from huggingface_hub import login as hf_login, snapshot_download
 from peft import LoraConfig
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, set_seed
+from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer, BitsAndBytesConfig, set_seed
 from trl import DPOConfig, DPOTrainer
 
 from src.formatting import build_chat_prompt
@@ -98,12 +98,22 @@ def _build_quant_config(mcfg: Dict[str, Any]) -> Optional[BitsAndBytesConfig]:
     )
 
 
-def load_policy_and_tokenizer(cfg: Dict[str, Any], logger: logging.Logger) -> Tuple[torch.nn.Module, Any]:
+def load_policy_and_tokenizer(cfg: Dict[str, Any], logger: logging.Logger) -> Tuple[torch.nn.Module, Any, Any]:
     mcfg = cfg["model"]
     model_id = mcfg["model_id"]
     tok_id = mcfg.get("tokenizer_id", model_id)
 
-    tokenizer = AutoTokenizer.from_pretrained(tok_id, use_fast=True)
+    # Try AutoProcessor first — multimodal models (e.g. Gemma 3) need a Processor
+    # as processing_class for DPOTrainer, not a bare tokenizer.
+    try:
+        processor = AutoProcessor.from_pretrained(tok_id, use_fast=True)
+        tokenizer = processor.tokenizer if hasattr(processor, "tokenizer") else processor
+        logger.info("Loaded AutoProcessor for %s", tok_id)
+    except Exception:
+        processor = AutoTokenizer.from_pretrained(tok_id, use_fast=True)
+        tokenizer = processor
+        logger.info("Loaded AutoTokenizer for %s", tok_id)
+
     tokenizer.padding_side = "left"
     tokenizer.truncation_side = "left"
     ensure_pad_token(tokenizer)
@@ -128,7 +138,7 @@ def load_policy_and_tokenizer(cfg: Dict[str, Any], logger: logging.Logger) -> Tu
     model.config.pad_token_id = tokenizer.pad_token_id
     model.config.use_cache = not bool(cfg.get("trainer", {}).get("gradient_checkpointing", False))
 
-    return model, tokenizer
+    return model, tokenizer, processor
 
 
 # =============================================================================
@@ -237,7 +247,7 @@ def main() -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    model, tokenizer = load_policy_and_tokenizer(cfg, logger)
+    model, tokenizer, processor = load_policy_and_tokenizer(cfg, logger)
 
     dcfg = cfg["data"]
     ds = load_dataset(dcfg, logger)
@@ -299,7 +309,7 @@ def main() -> None:
         args=dpo_args,
         train_dataset=train_ds,
         eval_dataset=eval_ds,
-        processing_class=tokenizer,
+        processing_class=processor,
         peft_config=lora_cfg,
     )
 
