@@ -28,24 +28,15 @@ WANDB_PROJECTS = {
 
 BROAD_EXPERIMENTS = {"gemma", "llama", "qwen"}
 
-# Per-experiment GPU partitioning for GRPO/GSPO: (partition, gres, mem)
-GPU_CONFIG = {
-    "gemma":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
-    "gemma_aus":  ("a100",      "gpu:1",                         "200G"),
-    "gemma_brit": ("a100",      "gpu:1",                         "200G"),
-    "gemma_ind":  ("a100",      "gpu:1",                         "200G"),
-    "llama":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
-    "llama_aus":  ("3090_risk", "gpu:4",                         "200G"),
-    "llama_brit": ("3090_risk", "gpu:4",                         "200G"),
-    "llama_ind":  ("3090_risk", "gpu:4",                         "200G"),
-    "qwen":       ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
-    "qwen_aus":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
-    "qwen_brit":  ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
-    "qwen_ind":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "200G"),
-}
+# Per-experiment GPU partitioning: (partition, gres, mem)
+GPU_CONFIG = {exp: ("a100", "gpu:1", "80G") for exp in [
+    "gemma", "llama", "qwen",
+    "gemma_aus", "llama_aus", "qwen_aus",
+    "gemma_ind", "llama_ind", "qwen_ind",
+    "gemma_brit", "llama_brit", "qwen_brit",
+]}
 
-# DPO: all on a single A100, lighter memory footprint (no reward models)
-DPO_GPU_CONFIG = {exp: ("a100", "gpu:1", "64G") for exp in [
+DPO_GPU_CONFIG = {exp: ("a100", "gpu:1", "80G") for exp in [
     "gemma", "llama", "qwen",
     "gemma_aus", "llama_aus", "qwen_aus",
     "gemma_ind", "llama_ind", "qwen_ind",

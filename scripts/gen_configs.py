@@ -323,6 +323,7 @@ def build_dpo_config(exp):
     trainer["output_dir"] = f"runs/dpo_{exp['name']}"
     trainer["learning_rate"] = exp["lr"]
     trainer["max_prompt_length"] = exp["max_prompt_length"]
+    trainer["max_length"] = exp["max_prompt_length"] + exp["max_completion_length"]
     if exp["optim"]:
         trainer["optim"] = exp["optim"]
 
