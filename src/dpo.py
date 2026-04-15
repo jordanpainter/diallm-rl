@@ -289,11 +289,13 @@ def main() -> None:
     eval_ds = eval_ds.remove_columns([c for c in eval_ds.column_names if c not in keep_cols])
 
     # Gemma 3 (and other vision models): TRL's DPOTrainer detects the Gemma3Processor
-    # and expects an "images" column in the dataset. Add a None column so it falls
-    # through to text-only processing.
+    # and expects an "images" column with real PIL images — passing None causes a
+    # KeyError on pixel_values. Add a dummy 1x1 black image per row.
     if hasattr(processor, "tokenizer"):
-        train_ds = train_ds.add_column("images", [None] * len(train_ds))
-        eval_ds = eval_ds.add_column("images", [None] * len(eval_ds))
+        from PIL import Image
+        dummy = Image.new("RGB", (1, 1), color=(0, 0, 0))
+        train_ds = train_ds.add_column("images", [dummy] * len(train_ds))
+        eval_ds = eval_ds.add_column("images", [dummy] * len(eval_ds))
         logger.info("Added dummy images column for vision processor (%s)", type(processor).__name__)
 
     peft_cfg = cfg.get("peft", {})
