@@ -318,7 +318,7 @@ def main() -> None:
         args=dpo_args,
         train_dataset=train_ds,
         eval_dataset=eval_ds,
-        processing_class=processor,
+        processing_class=tokenizer,
         peft_config=lora_cfg,
     )
 
