@@ -31,18 +31,18 @@ BROAD_EXPERIMENTS = {"gemma", "llama", "qwen"}
 # Per-experiment GPU partitioning for GRPO/GSPO: (partition, gres, mem)
 # 4x RTX 3090 (24GB each = 96GB total) via device_map="auto" model parallelism
 GPU_CONFIG = {
-    "gemma":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "llama":      ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "qwen":       ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "gemma_aus":  ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "gemma_brit": ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "gemma_ind":  ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "llama_aus":  ("3090_risk", "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "llama_brit": ("3090_risk", "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "llama_ind":  ("3090_risk", "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "qwen_aus":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "qwen_brit":  ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
-    "qwen_ind":   ("3090",      "gpu:nvidia_geforce_rtx_3090:4", "120G"),
+    "gemma":      ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "llama":      ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "qwen":       ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "gemma_aus":  ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "gemma_brit": ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "gemma_ind":  ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "llama_aus":  ("3090_risk", "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "llama_brit": ("3090_risk", "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "llama_ind":  ("3090_risk", "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "qwen_aus":   ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "qwen_brit":  ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
+    "qwen_ind":   ("3090",      "gpu:nvidia_geforce_rtx_3090:2", "120G"),
 }
 
 DPO_GPU_CONFIG = {exp: ("a100", "gpu:1", "80G") for exp in [
