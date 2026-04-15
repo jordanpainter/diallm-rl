@@ -28,8 +28,9 @@ WANDB_PROJECTS = {
 
 BROAD_EXPERIMENTS = {"gemma", "llama", "qwen"}
 
-# Per-experiment GPU partitioning: (partition, gres, mem)
-GPU_CONFIG = {exp: ("a100", "gpu:1", "80G") for exp in [
+# Per-experiment GPU partitioning for GRPO/GSPO: (partition, gres, mem)
+# 4x RTX 3090 (24GB each = 96GB total) via device_map="auto" model parallelism
+GPU_CONFIG = {exp: ("pair-project", "gpu:nvidia_geforce_rtx_3090:4", "120G") for exp in [
     "gemma", "llama", "qwen",
     "gemma_aus", "llama_aus", "qwen_aus",
     "gemma_ind", "llama_ind", "qwen_ind",
