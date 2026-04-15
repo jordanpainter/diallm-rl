@@ -19,7 +19,7 @@ venv/
 .env*
 
 # Cluster outputs / checkpoints (stay on scratch)
-runs/
+runs/*/
 wandb/
 
 # Log files (folder tracked via .gitkeep)

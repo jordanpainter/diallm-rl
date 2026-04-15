@@ -10,7 +10,6 @@ import json
 import os
 
 WANDB_ENTITY = "jordanpainter"
-SCRATCH_BASE = "/mnt/fast/nobackup/scratch4weeks/jp01166/runs"
 
 AUS_FEATURES  = [2, 13, 14, 18, 42, 50, 54, 55, 73, 74, 82, 92, 106, 111, 124, 125, 126, 128, 132, 134]
 BRIT_FEATURES = [13, 14, 18, 19, 27, 31, 34, 36, 37, 38, 48, 54, 72, 73, 74, 82, 99, 101, 102, 104, 107, 110, 115, 116, 124, 125, 126, 130, 133, 134]
@@ -276,7 +275,7 @@ def build_rl_config(exp, algorithm):
         rewards["dialect_feature_indices"] = exp["feature_indices"]
 
     trainer = copy.deepcopy(COMMON_TRAINER_GSPO if algorithm == "gspo" else COMMON_TRAINER_BASE)
-    trainer["output_dir"] = f"{SCRATCH_BASE}/{algorithm}_{exp['name']}"
+    trainer["output_dir"] = f"runs/{algorithm}_{exp['name']}"
     trainer["learning_rate"] = exp["lr"]
     trainer["max_completion_length"] = exp["max_completion_length"]
     trainer["max_prompt_length"] = exp["max_prompt_length"]
@@ -317,7 +316,7 @@ def build_dpo_config(exp):
     wandb_project = f"dpo-{suffix}"
 
     trainer = copy.deepcopy(COMMON_DPO_TRAINER_BASE)
-    trainer["output_dir"] = f"{SCRATCH_BASE}/dpo_{exp['name']}"
+    trainer["output_dir"] = f"runs/dpo_{exp['name']}"
     trainer["learning_rate"] = exp["lr"]
     trainer["max_prompt_length"] = exp["max_prompt_length"]
 

@@ -113,7 +113,7 @@
     "loss_type": "grpo",
     "scale_rewards": false,
     "max_grad_norm": 1.0,
-    "output_dir": "/mnt/fast/nobackup/scratch4weeks/jp01166/runs/grpo_gemma_brit",
+    "output_dir": "runs/grpo_gemma_brit",
     "learning_rate": 5e-06,
     "max_completion_length": 256,
     "max_prompt_length": 2048

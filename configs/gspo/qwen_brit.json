@@ -114,7 +114,7 @@
     "scale_rewards": false,
     "max_grad_norm": 1.0,
     "importance_sampling_level": "sequence",
-    "output_dir": "/mnt/fast/nobackup/scratch4weeks/jp01166/runs/gspo_qwen_brit",
+    "output_dir": "runs/gspo_qwen_brit",
     "learning_rate": 2e-06,
     "max_completion_length": 192,
     "max_prompt_length": 1024,

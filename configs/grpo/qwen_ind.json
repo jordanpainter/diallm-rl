@@ -121,7 +121,7 @@
     "loss_type": "grpo",
     "scale_rewards": false,
     "max_grad_norm": 1.0,
-    "output_dir": "/mnt/fast/nobackup/scratch4weeks/jp01166/runs/grpo_qwen_ind",
+    "output_dir": "runs/grpo_qwen_ind",
     "learning_rate": 2e-06,
     "max_completion_length": 192,
     "max_prompt_length": 1024,
