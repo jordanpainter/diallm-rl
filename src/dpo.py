@@ -24,7 +24,7 @@ import numpy as np
 import torch
 from datasets import load_dataset as hf_load_dataset
 from datasets import load_from_disk
-from huggingface_hub import login as hf_login
+from huggingface_hub import login as hf_login, snapshot_download
 from peft import LoraConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, set_seed
 from trl import DPOConfig, DPOTrainer
@@ -145,18 +145,28 @@ def load_dataset(cfg_data: Dict[str, Any], logger: logging.Logger):
         logger.info("Loading dataset from disk: %s", dataset_path)
         ds_any = load_from_disk(dataset_path)
     elif dataset_id:
-        logger.info("Loading dataset from Hub: %s (split=%s)", dataset_id, split)
-        ds_any = hf_load_dataset(dataset_id, split=split)
+        logger.info("Downloading dataset snapshot from Hub: %s", dataset_id)
+        local_path = snapshot_download(repo_id=dataset_id, repo_type="dataset")
+        logger.info("Downloaded to %s", local_path)
+        try:
+            ds_any = load_from_disk(local_path)
+        except Exception:
+            logger.info("Not a save_to_disk snapshot, falling back to load_dataset")
+            ds_any = hf_load_dataset(dataset_id, split=split)
     else:
         raise ValueError("Expected either data.dataset_path or data.dataset_id in config.")
 
-    if hasattr(ds_any, "column_names"):
-        logger.info("Loaded dataset with columns: %s", ds_any.column_names)
+    from datasets import Dataset, DatasetDict
+    if isinstance(ds_any, Dataset):
+        logger.info("Loaded Dataset with columns: %s", ds_any.column_names)
         return ds_any
 
-    ds = ds_any[split] if split in ds_any else ds_any[list(ds_any.keys())[0]]
-    logger.info("Loaded split '%s' with columns: %s", split, ds.column_names)
-    return ds
+    if isinstance(ds_any, DatasetDict):
+        ds = ds_any[split] if split in ds_any else ds_any[list(ds_any.keys())[0]]
+        logger.info("Loaded split '%s' with columns: %s", split, ds.column_names)
+        return ds
+
+    raise TypeError(f"Unsupported dataset type: {type(ds_any)}")
 
 
 def build_prompt(tokenizer, system_prompt: str, user_prompt: str) -> str:
