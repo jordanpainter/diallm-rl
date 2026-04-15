@@ -36,7 +36,7 @@ COMMON_NORMALIZATION = {
 COMMON_COMET = {
     "comet_model_name": "Unbabel/wmt22-comet-da",
     "comet_batch_size": 2,
-    "comet_force_cpu": False,
+    "comet_force_cpu": True,
     "sim_model_name": "sentence-transformers/all-MiniLM-L6-v2",
     "verbose_examples": 2,
 }
