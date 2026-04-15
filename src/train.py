@@ -270,13 +270,18 @@ class CachedCosineScorer:
 
 
 class CachedCometScorer:
-    def __init__(self, model_name: str, batch_size: int, force_cpu: bool, logger: logging.Logger):
+    def __init__(self, model_name: str, batch_size: int, force_cpu: bool, logger: logging.Logger, device_id: int | None = None):
         self.model_name = model_name
         self.batch_size = int(batch_size)
         self.force_cpu = bool(force_cpu)
         self.logger = logger
         self.model = None
-        self.device = "cpu" if self.force_cpu else ("cuda" if torch.cuda.is_available() else "cpu")
+        if self.force_cpu:
+            self.device = "cpu"
+        elif device_id is not None:
+            self.device = f"cuda:{device_id}"
+        else:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     def _ensure_loaded(self) -> None:
         if self.model is None:
@@ -353,11 +358,13 @@ class CombinedReward:
         self.rz_comet = RunningZScore(beta=self.beta, eps=self.eps)
         self.rz_cosine = RunningZScore(beta=self.beta, eps=self.eps)
 
+        _comet_device_id = rcfg.get("comet_device_id")
         self.comet = CachedCometScorer(
             model_name=rcfg.get("comet_model_name", "Unbabel/wmt22-comet-da"),
             batch_size=int(rcfg.get("comet_batch_size", 8)),
             force_cpu=bool(rcfg.get("comet_force_cpu", True)),
             logger=logger,
+            device_id=int(_comet_device_id) if _comet_device_id is not None else None,
         )
         self.cosine = CachedCosineScorer(
             model_name=rcfg.get("sim_model_name", "sentence-transformers/all-MiniLM-L6-v2"),

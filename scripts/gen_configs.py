@@ -37,6 +37,7 @@ COMMON_COMET = {
     "comet_model_name": "Unbabel/wmt22-comet-da",
     "comet_batch_size": 2,
     "comet_force_cpu": True,
+    "comet_device_id": None,  # set to e.g. 4 to pin COMET to a specific GPU instead of CPU
     "sim_model_name": "sentence-transformers/all-MiniLM-L6-v2",
     "verbose_examples": 2,
 }

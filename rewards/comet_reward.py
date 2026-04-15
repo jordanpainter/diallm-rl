@@ -22,9 +22,11 @@ def _barrier():
         dist.barrier()
 
 
-def _pick_device(force_cpu: bool = False) -> torch.device:
+def _pick_device(force_cpu: bool = False, device_id: Optional[int] = None) -> torch.device:
     if force_cpu:
         return torch.device("cpu")
+    if device_id is not None:
+        return torch.device(f"cuda:{device_id}")
     if torch.cuda.is_available():
         lr = _get_local_rank()
         torch.cuda.set_device(lr)
@@ -67,6 +69,7 @@ def cometkiwi_reward(
     model_name: str = "Unbabel/wmt22-cometkiwi-da",
     batch_size: int = 8,
     force_cpu: bool = True,
+    device_id: Optional[int] = None,
     **kwargs,
 ) -> List[float]:
     """
@@ -74,7 +77,7 @@ def cometkiwi_reward(
     Uses src=prompt_raw (preferred) else src=prompts, and mt=completions.
     """
     srcs = prompt_raw if prompt_raw is not None else prompts
-    device = _pick_device(force_cpu=force_cpu)
+    device = _pick_device(force_cpu=force_cpu, device_id=device_id)
     model = _load_comet(model_name, device=device)
 
     data = [{"src": s, "mt": m} for s, m in zip(srcs, completions)]
@@ -98,6 +101,7 @@ def comet_reward_with_ref(
     model_name: str = "Unbabel/wmt22-comet-da",
     batch_size: int = 8,
     force_cpu: bool = True,
+    device_id: Optional[int] = None,
     **kwargs,
 ) -> List[float]:
     """
@@ -106,7 +110,7 @@ def comet_reward_with_ref(
     """
     assert chosen is not None
     srcs = prompt_raw if prompt_raw is not None else prompts
-    device = _pick_device(force_cpu=force_cpu)
+    device = _pick_device(force_cpu=force_cpu, device_id=device_id)
     model = _load_comet(model_name, device=device)
 
     data = [{"src": s, "mt": m, "ref": r} for s, m, r in zip(srcs, completions, chosen)]
