@@ -30,7 +30,7 @@
     "task_type": "CAUSAL_LM"
   },
   "data": {
-    "dataset_id": "jordanpainter/dialect-qwen-base-all",
+    "dataset_id": "jordanpainter/dialect-preferences",
     "dataset_split": "train",
     "seed": 42,
     "test_size": 0.02,
