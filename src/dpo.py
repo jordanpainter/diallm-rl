@@ -322,9 +322,9 @@ def main() -> None:
         peft_config=lora_cfg,
     )
 
-    model.config.model_type = _original_model_type
-
     trainer.train()
+
+    model.config.model_type = _original_model_type
 
     out_dir = trainer.args.output_dir
     os.makedirs(out_dir, exist_ok=True)

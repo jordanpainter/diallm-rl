@@ -651,6 +651,14 @@ def main() -> None:
 
     logger.info("model device=%s dtype=%s", next(model.parameters()).device, next(model.parameters()).dtype)
 
+    # GRPOTrainer also routes Gemma3 to vision processing via model.config.model_type.
+    # Override to text-only path during trainer init, restore after training so the
+    # saved checkpoint has the correct model_type.
+    _original_model_type = model.config.model_type
+    if _original_model_type == "gemma3":
+        model.config.model_type = "gemma2"
+        logger.info("Overriding model_type gemma3→gemma2 for TRL text-only GRPO/GSPO path")
+
     trainer = DiallmTrainer(
         model=model,
         args=training_args,
@@ -663,6 +671,8 @@ def main() -> None:
     )
 
     trainer.train()
+
+    model.config.model_type = _original_model_type
 
     out_dir = trainer.args.output_dir
     os.makedirs(out_dir, exist_ok=True)
