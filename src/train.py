@@ -42,7 +42,7 @@ from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, set_seed
 from trl import GRPOConfig, GRPOTrainer
 
-from rewards.dialect_reward import dialect_density, reset_scorer
+from rewards.dialect_reward import dialect_log1p, reset_scorer
 from src.formatting import build_chat_prompt
 
 
@@ -388,8 +388,8 @@ class CombinedReward:
 
         prompt_raw = kw.get("prompt_raw", prompts)
 
-        r_d_gen = np.array(dialect_density(list(completions)), dtype=np.float32)
-        r_d_chosen = np.array(dialect_density(list(chosen)), dtype=np.float32)
+        r_d_gen = np.array(dialect_log1p(list(completions)), dtype=np.float32)
+        r_d_chosen = np.array(dialect_log1p(list(chosen)), dtype=np.float32)
 
         r_c = self.comet.score(prompt_raw, completions, chosen) if self.w_comet != 0.0 else np.zeros(len(completions), dtype=np.float32)
         r_s = self.cosine.score(completions, chosen) if self.w_cosine != 0.0 else np.zeros(len(completions), dtype=np.float32)
@@ -444,7 +444,7 @@ class CombinedReward:
             self._preview_done = True
 
         self.logger.info(
-            "reward | gen_density=%.4f chosen_density=%.4f comet=%.4f cosine=%.4f | total(norm)=%.4f",
+            "reward | gen_log1p=%.4f chosen_log1p=%.4f comet=%.4f cosine=%.4f | total(norm)=%.4f",
             self.latest.raw_dialect_gen_mean, self.latest.raw_dialect_chosen_mean,
             self.latest.raw_comet_mean, self.latest.raw_cosine_mean, self.latest.total_mean,
         )

@@ -85,59 +85,16 @@ class DialectDensityScorer:
         return torch.sigmoid(logits)
 
     @torch.no_grad()
-    def score_raw(self, texts: List[str]) -> torch.Tensor:
+    def score_log1p(self, texts: List[str]) -> torch.Tensor:
         """
-        Returns the expected number of active dialect features per text.
-        If feature_indices was set, only those positions are summed.
+        Returns log1p(sum(sigmoid(logits))) over active dialect features per text.
+        If feature_indices was set, only those positions are included.
+        Range: [0, log1p(num_active_features)] — denser signal than density,
+        concave compression discourages runaway reward hacking.
         Shape: (batch,)
         """
-        probs = self.predict_feature_probabilities(texts)
+        logits = self.predict_logits(texts)
+        probs = torch.sigmoid(logits)
         if self._feature_indices is not None:
             probs = probs[:, self._feature_indices]
-        return probs.sum(dim=1)
-
-    @torch.no_grad()
-    def score_density(self, texts: List[str]) -> torch.Tensor:
-        """
-        Returns dialect density per text in [0, 1].
-        Denominator is num_active_features (== len(feature_indices) if set, else 135).
-        Shape: (batch,)
-        """
-        raw = self.score_raw(texts)
-        return raw / float(self.num_active_features)
-
-    @torch.no_grad()
-    def score_details(self, texts: List[str]) -> Dict[str, torch.Tensor]:
-        """
-        Convenience method for debugging or analysis.
-        Returns:
-        - feature_probs: (batch, num_features)
-        - raw: (batch,)
-        - density: (batch,)
-        """
-        probs = self.predict_feature_probabilities(texts)
-        raw = probs.sum(dim=1)
-        density = raw / float(self.num_features)
-        return {
-            "feature_probs": probs.detach().cpu(),
-            "raw": raw.detach().cpu(),
-            "density": density.detach().cpu(),
-        }
-
-    @torch.no_grad()
-    def compare_density(self, generated_texts: List[str], base_texts: List[str]) -> Dict[str, torch.Tensor]:
-        """
-        Returns:
-        - gen_density
-        - base_density
-        - gain = gen_density - base_density
-        """
-        gen_density = self.score_density(generated_texts)
-        base_density = self.score_density(base_texts)
-        gain = gen_density - base_density
-
-        return {
-            "gen_density": gen_density.detach().cpu(),
-            "base_density": base_density.detach().cpu(),
-            "gain": gain.detach().cpu(),
-        }
+        return torch.log1p(probs.sum(dim=1))

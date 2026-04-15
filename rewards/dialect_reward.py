@@ -56,47 +56,15 @@ def _get_scorer() -> DialectDensityScorer:
     return _SCORER
 
 
-def dialect_density(texts: List[str]) -> List[float]:
+def dialect_log1p(texts: List[str]) -> List[float]:
     """
-    Returns dialect density in [0, 1] for each text.
-    """
-    scorer = _get_scorer()
-    densities = scorer.score_density(texts)
-
-    if isinstance(densities, torch.Tensor):
-        densities = densities.detach().cpu().tolist()
-
-    return [float(x) for x in densities]
-
-
-def dialect_raw_score(texts: List[str]) -> List[float]:
-    """
-    Returns raw expected feature count for each text.
+    Returns log1p(sum(sigmoid(logits))) over active dialect features for each text.
+    Denser signal than density, concave compression via log1p.
     """
     scorer = _get_scorer()
-    raw = scorer.score_raw(texts)
+    scores = scorer.score_log1p(texts)
 
-    if isinstance(raw, torch.Tensor):
-        raw = raw.detach().cpu().tolist()
+    if isinstance(scores, torch.Tensor):
+        scores = scores.detach().cpu().tolist()
 
-    return [float(x) for x in raw]
-
-
-def dialect_density_gain(generated_texts: List[str], base_texts: List[str]) -> List[float]:
-    """
-    Returns density(generation) - density(base) for each paired example.
-    """
-    if len(generated_texts) != len(base_texts):
-        raise ValueError(
-            f"generated_texts and base_texts must have the same length, got "
-            f"{len(generated_texts)} and {len(base_texts)}"
-        )
-
-    scorer = _get_scorer()
-    details = scorer.compare_density(generated_texts, base_texts)
-    gain = details["gain"]
-
-    if isinstance(gain, torch.Tensor):
-        gain = gain.detach().cpu().tolist()
-
-    return [float(x) for x in gain]
+    return [float(x) for x in scores]
