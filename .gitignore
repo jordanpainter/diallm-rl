@@ -20,5 +20,8 @@ venv/
 
 # Cluster outputs / checkpoints (stay on scratch)
 runs/
-logs/
 wandb/
+
+# Log files (folder tracked via .gitkeep)
+logs/*.out
+logs/*.err

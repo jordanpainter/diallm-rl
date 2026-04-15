@@ -52,8 +52,8 @@ def make_sub(algorithm, exp_name):
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=200G
 #SBATCH --time=48:00:00
-#SBATCH --output=/mnt/fast/nobackup/scratch4weeks/%u/logs/%x.%N.%j.out
-#SBATCH --error=/mnt/fast/nobackup/scratch4weeks/%u/logs/%x.%N.%j.err
+#SBATCH --output=/mnt/fast/nobackup/scratch4weeks/%u/repos/diallm-rl/logs/%x.%N.%j.out
+#SBATCH --error=/mnt/fast/nobackup/scratch4weeks/%u/repos/diallm-rl/logs/%x.%N.%j.err
 
 set -euo pipefail
 
@@ -63,7 +63,7 @@ REPO="$SCRATCH/repos/diallm-rl"
 CONFIG="{config_path}"
 
 mkdir -p \\
-  "$SCRATCH/logs" \\
+  "$REPO/logs" \\
   "$SCRATCH/tmp" \\
   "$SCRATCH/wandb" \\
   "$SCRATCH/hf/hub" \\
