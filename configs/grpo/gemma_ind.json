@@ -1,0 +1,129 @@
+{
+  "algorithm": "grpo",
+  "wandb": {
+    "project": "grpo-narrow",
+    "entity": "jordanpainter"
+  },
+  "model": {
+    "model_id": "jordanpainter/diallm-gemma-sft-ind",
+    "tokenizer_id": "google/gemma-3-4b-it",
+    "load_in_4bit": false,
+    "bnb_4bit_compute_dtype": "bfloat16",
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": true
+  },
+  "peft": {
+    "enabled": false,
+    "r": 8,
+    "lora_alpha": 16,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "bias": "none",
+    "task_type": "CAUSAL_LM"
+  },
+  "data": {
+    "dataset_id": "jordanpainter/alignment-indian-final",
+    "dataset_split": "train",
+    "seed": 42,
+    "test_size": 0.02,
+    "system_prompt": "You are a helpful assistant."
+  },
+  "rewards": {
+    "weights": {
+      "dialect": 0.8,
+      "comet": 0.1,
+      "cosine": 0.1
+    },
+    "normalization": {
+      "method": "running_zscore",
+      "clip_z": 5.0,
+      "eps": 1e-06,
+      "beta": 0.99,
+      "warmup_steps": 50
+    },
+    "comet_model_name": "Unbabel/wmt22-comet-da",
+    "comet_batch_size": 2,
+    "comet_force_cpu": false,
+    "sim_model_name": "sentence-transformers/all-MiniLM-L6-v2",
+    "verbose_examples": 2,
+    "dialect_feature_indices": [
+      18,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      31,
+      34,
+      36,
+      37,
+      38,
+      40,
+      41,
+      43,
+      48,
+      50,
+      51,
+      54,
+      55,
+      67,
+      88,
+      92,
+      107,
+      110,
+      111,
+      112,
+      118,
+      120,
+      123,
+      127,
+      129,
+      130,
+      131,
+      132,
+      134
+    ]
+  },
+  "trainer": {
+    "ddp_find_unused_parameters": false,
+    "length_safety_margin": 16,
+    "report_to": "wandb",
+    "max_steps": 5000,
+    "warmup_ratio": 0.05,
+    "weight_decay": 0.0,
+    "bf16": true,
+    "fp16": false,
+    "gradient_checkpointing": true,
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "steps_per_generation": 4,
+    "logging_steps": 1,
+    "num_generations": 4,
+    "temperature": 0.7,
+    "top_p": 0.95,
+    "generation_kwargs": {
+      "do_sample": true
+    },
+    "beta": 0.02,
+    "epsilon": 0.0003,
+    "epsilon_high": 0.0004,
+    "loss_type": "grpo",
+    "scale_rewards": false,
+    "max_grad_norm": 1.0,
+    "output_dir": "/mnt/fast/nobackup/scratch4weeks/jp01166/runs/grpo_gemma_ind",
+    "learning_rate": 5e-06,
+    "max_completion_length": 256,
+    "max_prompt_length": 2048
+  }
+}

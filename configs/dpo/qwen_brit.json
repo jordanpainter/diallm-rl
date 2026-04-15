@@ -1,0 +1,59 @@
+{
+  "algorithm": "dpo",
+  "wandb": {
+    "project": "dpo-narrow",
+    "entity": "jordanpainter"
+  },
+  "model": {
+    "model_id": "jordanpainter/diallm-qwen-sft-brit",
+    "tokenizer_id": "Qwen/Qwen3-8B",
+    "load_in_4bit": false,
+    "bnb_4bit_compute_dtype": "bfloat16",
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": true
+  },
+  "peft": {
+    "enabled": false,
+    "r": 8,
+    "lora_alpha": 16,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "bias": "none",
+    "task_type": "CAUSAL_LM"
+  },
+  "data": {
+    "dataset_id": "jordanpainter/alignment-british-final",
+    "dataset_split": "train",
+    "seed": 42,
+    "test_size": 0.02,
+    "system_prompt": "You are a helpful assistant."
+  },
+  "trainer": {
+    "ddp_find_unused_parameters": false,
+    "report_to": "wandb",
+    "max_steps": 5000,
+    "learning_rate": 2e-06,
+    "warmup_ratio": 0.05,
+    "weight_decay": 0.0,
+    "bf16": true,
+    "fp16": false,
+    "gradient_checkpointing": true,
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "logging_steps": 1,
+    "beta": 0.1,
+    "loss_type": "sigmoid",
+    "max_length": 2048,
+    "max_prompt_length": 1024,
+    "max_grad_norm": 1.0,
+    "output_dir": "/mnt/fast/nobackup/scratch4weeks/jp01166/runs/dpo_qwen_brit"
+  }
+}

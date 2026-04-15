@@ -1,0 +1,689 @@
+"""
+src/train.py
+
+Unified GRPO / GSPO training script for dialectal English adaptation.
+
+Algorithm is controlled by the top-level "algorithm" field in the config:
+    "algorithm": "grpo"   →  standard GRPO (token-level importance sampling)
+    "algorithm": "gspo"   →  GSPO (sequence-level importance sampling)
+
+Both modes share identical reward functions, weights, and trainer logic.
+The only difference is whether importance_sampling_level="sequence" is set.
+
+Reward modes (can be combined):
+    - Absolute dialect density  (all configs; optionally masked to a dialect's
+                                  feature subset via rewards.dialect_feature_indices)
+
+Run:
+    accelerate launch --num_processes=1 -m src.train -c configs/grpo/gemma.json
+    accelerate launch --num_processes=1 -m src.train -c configs/gspo/gemma_brit.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import inspect
+import json
+import logging
+import os
+import random
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
+import torch
+from comet import download_model as comet_download_model
+from comet import load_from_checkpoint as comet_load_from_checkpoint
+from datasets import load_dataset as hf_load_dataset
+from datasets import load_from_disk
+from huggingface_hub import login as hf_login
+from peft import LoraConfig
+from sentence_transformers import SentenceTransformer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, set_seed
+from trl import GRPOConfig, GRPOTrainer
+
+from rewards.dialect_reward import dialect_density, reset_scorer
+from src.formatting import build_chat_prompt
+
+
+# =============================================================================
+# Logging and small utilities
+# =============================================================================
+
+
+def setup_logging() -> logging.Logger:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    return logging.getLogger("diallm.train")
+
+
+def get_local_rank() -> int:
+    return int(os.environ.get("LOCAL_RANK", os.environ.get("RANK", "0")))
+
+
+def ensure_pad_token(tokenizer) -> None:
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+
+def hard_trim_completion(text: str, stop_strings: Sequence[str]) -> str:
+    if not text:
+        return text
+    cut: Optional[int] = None
+    for s in stop_strings:
+        if not s:
+            continue
+        idx = text.find(s)
+        if idx != -1:
+            cut = idx if cut is None else min(cut, idx)
+    return text[:cut].rstrip() if cut is not None else text
+
+
+def resolve_model_max_length(tokenizer, model, fallback: int = 2048) -> int:
+    tmax = getattr(tokenizer, "model_max_length", None)
+    if isinstance(tmax, int) and 64 < tmax < 100_000:
+        return int(tmax)
+    mmax = getattr(getattr(model, "config", None), "max_position_embeddings", None)
+    if isinstance(mmax, int) and 64 < mmax < 100_000:
+        return int(mmax)
+    return int(fallback)
+
+
+def truncate_prompt_to_max_tokens(tokenizer, text: str, max_tokens: int) -> str:
+    if not text:
+        return text
+    enc = tokenizer(
+        text,
+        add_special_tokens=False,
+        return_attention_mask=False,
+        truncation=True,
+        max_length=max_tokens,
+    )
+    return tokenizer.decode(enc["input_ids"], skip_special_tokens=False, clean_up_tokenization_spaces=False)
+
+
+class RunningZScore:
+    def __init__(self, beta: float = 0.99, eps: float = 1e-6):
+        self.beta = float(beta)
+        self.eps = float(eps)
+        self.mu: Optional[float] = None
+        self.var: Optional[float] = None
+        self.steps: int = 0
+
+    def update(self, x: np.ndarray) -> None:
+        mu = float(x.mean())
+        var = float(x.var())
+        if self.mu is None:
+            self.mu, self.var = mu, var
+        else:
+            b = self.beta
+            self.mu = b * self.mu + (1 - b) * mu
+            self.var = b * self.var + (1 - b) * var
+        self.steps += 1
+
+    def normalize(self, x: np.ndarray) -> np.ndarray:
+        assert self.mu is not None and self.var is not None
+        return (x - self.mu) / np.sqrt(self.var + self.eps)
+
+
+# =============================================================================
+# Model + tokenizer loading
+# =============================================================================
+
+
+def _build_quant_config(mcfg: Dict[str, Any]) -> Optional[BitsAndBytesConfig]:
+    if not mcfg.get("load_in_4bit", False):
+        return None
+    compute_dtype = torch.bfloat16 if mcfg.get("bnb_4bit_compute_dtype", "bfloat16") == "bfloat16" else torch.float16
+    return BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=compute_dtype,
+        bnb_4bit_quant_type=mcfg.get("bnb_4bit_quant_type", "nf4"),
+        bnb_4bit_use_double_quant=bool(mcfg.get("bnb_4bit_use_double_quant", True)),
+    )
+
+
+def load_policy_and_tokenizer(cfg: Dict[str, Any], logger: logging.Logger) -> Tuple[torch.nn.Module, Any]:
+    mcfg = cfg["model"]
+    model_id = mcfg["model_id"]
+    tok_id = mcfg.get("tokenizer_id", model_id)
+
+    tokenizer = AutoTokenizer.from_pretrained(tok_id, use_fast=True)
+    tokenizer.padding_side = "left"
+    tokenizer.truncation_side = "left"
+    ensure_pad_token(tokenizer)
+
+    quant_cfg = _build_quant_config(mcfg)
+
+    gpu_count = torch.cuda.device_count()
+    device_map = "auto" if gpu_count > 1 else {"": get_local_rank()}
+    logger.info("cuda_device_count=%s | device_map=%s", gpu_count, device_map)
+
+    dtype = torch.bfloat16 if cfg.get("trainer", {}).get("bf16", False) else None
+
+    from_pretrained_kwargs: Dict[str, Any] = dict(
+        low_cpu_mem_usage=True,
+        quantization_config=quant_cfg,
+        device_map=device_map,
+        return_dict=True,
+    )
+    if dtype is not None:
+        from_pretrained_kwargs["torch_dtype"] = dtype
+
+    model = AutoModelForCausalLM.from_pretrained(model_id, **from_pretrained_kwargs)
+    model.config.eos_token_id = tokenizer.eos_token_id
+    model.config.pad_token_id = tokenizer.pad_token_id
+    model.config.use_cache = not bool(cfg.get("trainer", {}).get("gradient_checkpointing", False))
+
+    return model, tokenizer
+
+
+# =============================================================================
+# Dataset loading and prompt formatting
+# =============================================================================
+
+
+def load_dataset(cfg_data: Dict[str, Any], logger: logging.Logger):
+    dataset_path = cfg_data.get("dataset_path")
+    dataset_id = cfg_data.get("dataset_id")
+    split = cfg_data.get("dataset_split", "train")
+
+    if dataset_path:
+        logger.info("Loading dataset from local disk: %s", dataset_path)
+        ds_any = load_from_disk(dataset_path)
+    elif dataset_id:
+        logger.info("Loading dataset from Hub: %s (split=%s)", dataset_id, split)
+        ds_any = hf_load_dataset(dataset_id, split=split)
+    else:
+        raise ValueError("Expected either data.dataset_path or data.dataset_id in config.")
+
+    if hasattr(ds_any, "column_names"):
+        logger.info("Loaded dataset with columns: %s", ds_any.column_names)
+        return ds_any
+
+    if split in ds_any:
+        ds = ds_any[split]
+    else:
+        first_split = list(ds_any.keys())[0]
+        logger.warning("Split '%s' not found, using '%s'.", split, first_split)
+        ds = ds_any[first_split]
+
+    logger.info("Loaded split '%s' with columns: %s", split, ds.column_names)
+    return ds
+
+
+def build_prompt(tokenizer, system_prompt: str, user_prompt: str, prefer_chat_template: bool = True) -> str:
+    if prefer_chat_template and hasattr(tokenizer, "apply_chat_template") and getattr(tokenizer, "chat_template", None):
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
+        return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, enable_thinking=False)
+    return build_chat_prompt(tokenizer, system_prompt, user_prompt)
+
+
+def infer_stop_token_ids(tokenizer) -> List[int]:
+    eos_ids = []
+    if tokenizer.eos_token_id is not None:
+        eos_ids.append(int(tokenizer.eos_token_id))
+    for tok in ["<|eot_id|>", "<|end_of_turn|>", "<end_of_turn>"]:
+        if tok in tokenizer.get_vocab():
+            eos_ids.append(int(tokenizer.convert_tokens_to_ids(tok)))
+    seen: set = set()
+    return [i for i in eos_ids if not (i in seen or seen.add(i))]  # type: ignore[func-returns-value]
+
+
+# =============================================================================
+# Cached reward scorers
+# =============================================================================
+
+
+class CachedCosineScorer:
+    def __init__(self, model_name: str, logger: logging.Logger):
+        self.model_name = model_name
+        self.logger = logger
+        self.model: Optional[SentenceTransformer] = None
+
+    def _ensure_loaded(self) -> None:
+        if self.model is None:
+            self.logger.info("Loading SentenceTransformer: %s", self.model_name)
+            self.model = SentenceTransformer(self.model_name)
+
+    def score(self, completions: Sequence[str], chosen: Sequence[str]) -> np.ndarray:
+        self._ensure_loaded()
+        assert self.model is not None
+        emb_c = self.model.encode(list(completions), convert_to_tensor=True, normalize_embeddings=True, show_progress_bar=False)
+        emb_r = self.model.encode(list(chosen), convert_to_tensor=True, normalize_embeddings=True, show_progress_bar=False)
+        return torch.sum(emb_c * emb_r, dim=-1).detach().cpu().float().numpy()
+
+
+class CachedCometScorer:
+    def __init__(self, model_name: str, batch_size: int, force_cpu: bool, logger: logging.Logger):
+        self.model_name = model_name
+        self.batch_size = int(batch_size)
+        self.force_cpu = bool(force_cpu)
+        self.logger = logger
+        self.model = None
+        self.device = "cpu" if self.force_cpu else ("cuda" if torch.cuda.is_available() else "cpu")
+
+    def _ensure_loaded(self) -> None:
+        if self.model is None:
+            self.logger.info("Loading COMET: %s", self.model_name)
+            ckpt_path = comet_download_model(self.model_name)
+            self.model = comet_load_from_checkpoint(ckpt_path)
+            if hasattr(self.model, "to"):
+                self.model = self.model.to(self.device)
+            if hasattr(self.model, "eval"):
+                self.model.eval()
+
+    def score(self, prompts: Sequence[str], completions: Sequence[str], chosen: Sequence[str]) -> np.ndarray:
+        self._ensure_loaded()
+        assert self.model is not None
+        data = [{"src": p, "mt": c, "ref": r} for p, c, r in zip(prompts, completions, chosen)]
+        gpus = 1 if self.device == "cuda" else 0
+        out = self.model.predict(data, batch_size=self.batch_size, gpus=gpus, progress_bar=False)
+        if isinstance(out, tuple):
+            scores = out[0]
+        else:
+            scores = out.scores if hasattr(out, "scores") else out
+        return np.array(scores, dtype=np.float32)
+
+
+# =============================================================================
+# Reward construction
+# =============================================================================
+
+
+@dataclass
+class RewardTelemetry:
+    raw_dialect_gen_mean: float = 0.0
+    raw_dialect_chosen_mean: float = 0.0
+    raw_comet_mean: float = 0.0
+    raw_cosine_mean: float = 0.0
+    norm_dialect_mean: float = 0.0
+    norm_comet_mean: float = 0.0
+    norm_cosine_mean: float = 0.0
+    total_mean: float = 0.0
+    total_std: float = 0.0
+    preview_logged: bool = False
+
+
+def make_trim_wrapper(stop_strings: Sequence[str]):
+    def trim_wrapper(reward_fn):
+        def _wrapped(prompts, completions, **kwargs):
+            trimmed = [hard_trim_completion(c, stop_strings) for c in completions]
+            return reward_fn(prompts, trimmed, **kwargs)
+        _wrapped.__name__ = getattr(reward_fn, "__name__", "reward_fn")
+        return _wrapped
+    return trim_wrapper
+
+
+class CombinedReward:
+    def __init__(self, cfg: Dict[str, Any], logger: logging.Logger):
+        self.cfg = cfg
+        self.logger = logger
+
+        rcfg = cfg.get("rewards", {})
+        weights = rcfg.get("weights", {})
+        self.w_dialect = float(weights.get("dialect", 0.50))
+        self.w_comet = float(weights.get("comet", 0.25))
+        self.w_cosine = float(weights.get("cosine", 0.25))
+
+        ncfg = rcfg.get("normalization", {})
+        self.method = str(ncfg.get("method", "batch_zscore"))
+        self.clip_z = float(ncfg.get("clip_z", 5.0))
+        self.eps = float(ncfg.get("eps", 1e-6))
+        self.beta = float(ncfg.get("beta", 0.99))
+        self.warmup_steps = int(ncfg.get("warmup_steps", 0))
+        self.verbose_examples = int(rcfg.get("verbose_examples", 0))
+
+        self.rz_dialect = RunningZScore(beta=self.beta, eps=self.eps)
+        self.rz_comet = RunningZScore(beta=self.beta, eps=self.eps)
+        self.rz_cosine = RunningZScore(beta=self.beta, eps=self.eps)
+
+        self.comet = CachedCometScorer(
+            model_name=rcfg.get("comet_model_name", "Unbabel/wmt22-comet-da"),
+            batch_size=int(rcfg.get("comet_batch_size", 8)),
+            force_cpu=bool(rcfg.get("comet_force_cpu", True)),
+            logger=logger,
+        )
+        self.cosine = CachedCosineScorer(
+            model_name=rcfg.get("sim_model_name", "sentence-transformers/all-MiniLM-L6-v2"),
+            logger=logger,
+        )
+
+        self.latest = RewardTelemetry()
+        self._logged_keys = False
+        self._preview_done = False
+
+        feature_indices = rcfg.get("dialect_feature_indices")
+        if feature_indices is not None:
+            logger.info("Dialect masking enabled: %d active features", len(feature_indices))
+            reset_scorer(feature_indices=list(feature_indices))
+        else:
+            logger.info("No dialect_feature_indices — scorer uses all 135 features")
+
+    def _zscore_batch(self, x: np.ndarray) -> np.ndarray:
+        return (x - x.mean()) / (x.std() + self.eps)
+
+    def _clip(self, x: np.ndarray) -> np.ndarray:
+        return np.clip(x, -self.clip_z, self.clip_z) if self.clip_z > 0 else x
+
+    def __call__(self, prompts, completions, **kw):
+        chosen = kw.get("chosen")
+        if chosen is None:
+            raise ValueError("Expected 'chosen' in reward kwargs.")
+
+        prompt_raw = kw.get("prompt_raw", prompts)
+
+        r_d_gen = np.array(dialect_density(list(completions)), dtype=np.float32)
+        r_d_chosen = np.array(dialect_density(list(chosen)), dtype=np.float32)
+
+        r_c = self.comet.score(prompt_raw, completions, chosen) if self.w_comet != 0.0 else np.zeros(len(completions), dtype=np.float32)
+        r_s = self.cosine.score(completions, chosen) if self.w_cosine != 0.0 else np.zeros(len(completions), dtype=np.float32)
+
+        if self.method == "none":
+            z_d, z_c, z_s = r_d_gen, r_c, r_s
+        elif self.method == "batch_zscore":
+            z_d = self._clip(self._zscore_batch(r_d_gen))
+            z_c = self._clip(self._zscore_batch(r_c))
+            z_s = self._clip(self._zscore_batch(r_s))
+        elif self.method == "running_zscore":
+            self.rz_dialect.update(r_d_gen)
+            self.rz_comet.update(r_c)
+            self.rz_cosine.update(r_s)
+            if self.rz_dialect.steps <= self.warmup_steps:
+                z_d = self._clip(self._zscore_batch(r_d_gen))
+                z_c = self._clip(self._zscore_batch(r_c))
+                z_s = self._clip(self._zscore_batch(r_s))
+            else:
+                z_d = self._clip(self.rz_dialect.normalize(r_d_gen))
+                z_c = self._clip(self.rz_comet.normalize(r_c))
+                z_s = self._clip(self.rz_cosine.normalize(r_s))
+        else:
+            raise ValueError(f"Unknown rewards.normalization.method: {self.method}")
+
+        total = (self.w_dialect * z_d) + (self.w_comet * z_c) + (self.w_cosine * z_s)
+
+        self.latest = RewardTelemetry(
+            raw_dialect_gen_mean=float(r_d_gen.mean()),
+            raw_dialect_chosen_mean=float(r_d_chosen.mean()),
+            raw_comet_mean=float(r_c.mean()),
+            raw_cosine_mean=float(r_s.mean()),
+            norm_dialect_mean=float(z_d.mean()),
+            norm_comet_mean=float(z_c.mean()),
+            norm_cosine_mean=float(z_s.mean()),
+            total_mean=float(total.mean()),
+            total_std=float(total.std()),
+            preview_logged=self._preview_done,
+        )
+
+        if not self._logged_keys:
+            self.logger.info("reward kwargs keys: %s", sorted(list(kw.keys())))
+            self._logged_keys = True
+
+        if self.verbose_examples > 0 and not self._preview_done:
+            for i in range(min(self.verbose_examples, len(completions))):
+                self.logger.info(
+                    "reward preview %d | gen_density=%.4f chosen_density=%.4f comet=%.4f cosine=%.4f | response=%r",
+                    i, float(r_d_gen[i]), float(r_d_chosen[i]), float(r_c[i]), float(r_s[i]),
+                    completions[i][:300] if isinstance(completions[i], str) else completions[i],
+                )
+            self._preview_done = True
+
+        self.logger.info(
+            "reward | gen_density=%.4f chosen_density=%.4f comet=%.4f cosine=%.4f | total(norm)=%.4f",
+            self.latest.raw_dialect_gen_mean, self.latest.raw_dialect_chosen_mean,
+            self.latest.raw_comet_mean, self.latest.raw_cosine_mean, self.latest.total_mean,
+        )
+
+        return total.astype(np.float32).tolist()
+
+
+# =============================================================================
+# Trainer subclass — richer logging
+# =============================================================================
+
+
+class DiallmTrainer(GRPOTrainer):
+    def __init__(self, *args, reward_tracker: Optional[CombinedReward] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.reward_tracker = reward_tracker
+
+    def log(self, logs: Dict[str, float], *args, **kwargs):
+        logs = dict(logs)
+
+        if self.reward_tracker is not None:
+            rt = self.reward_tracker.latest
+            logs.setdefault("train/reward_raw/dialect_gen_mean", rt.raw_dialect_gen_mean)
+            logs.setdefault("train/reward_raw/dialect_chosen_mean", rt.raw_dialect_chosen_mean)
+            logs.setdefault("train/reward_raw/comet_mean", rt.raw_comet_mean)
+            logs.setdefault("train/reward_raw/cosine_mean", rt.raw_cosine_mean)
+            logs.setdefault("train/reward_norm/dialect_mean", rt.norm_dialect_mean)
+            logs.setdefault("train/reward_norm/comet_mean", rt.norm_comet_mean)
+            logs.setdefault("train/reward_norm/cosine_mean", rt.norm_cosine_mean)
+            logs.setdefault("train/reward_total/mean", rt.total_mean)
+            logs.setdefault("train/reward_total/std", rt.total_std)
+
+        for src_key in ["kl", "approx_kl", "objective/kl", "train/kl", "train/approx_kl", "policy/approxkl_avg"]:
+            if src_key in logs:
+                logs.setdefault("train/kl", logs[src_key])
+
+        for src_key in ["clip_ratio/region_mean", "clip_ratio/low_mean", "clip_ratio/high_mean",
+                        "objective/clip_ratio", "clip_ratio", "clip_frac"]:
+            if src_key in logs:
+                if "region" in src_key or src_key in ("objective/clip_ratio", "clip_ratio", "clip_frac"):
+                    logs.setdefault("train/clip_ratio", logs[src_key])
+                elif "low" in src_key:
+                    logs.setdefault("train/clip_ratio_low", logs[src_key])
+                elif "high" in src_key:
+                    logs.setdefault("train/clip_ratio_high", logs[src_key])
+
+        super().log(logs, *args, **kwargs)
+
+
+# =============================================================================
+# GRPOConfig builder — GSPO vs GRPO toggle
+# =============================================================================
+
+
+def build_training_config(
+    cfg: Dict[str, Any],
+    logger: logging.Logger,
+    tokenizer,
+    eos_ids: List[int],
+) -> GRPOConfig:
+    algorithm = cfg.get("algorithm", "gspo").lower()
+    raw_args = dict(cfg.get("trainer", {}))
+
+    gen_kwargs = dict(raw_args.get("generation_kwargs", {}))
+    gen_kwargs["eos_token_id"] = eos_ids
+    gen_kwargs["pad_token_id"] = tokenizer.pad_token_id
+    raw_args["generation_kwargs"] = gen_kwargs
+
+    if algorithm == "gspo":
+        raw_args.setdefault("importance_sampling_level", "sequence")
+        logger.info("Algorithm: GSPO (importance_sampling_level=sequence)")
+    else:
+        # For GRPO: do not set importance_sampling_level; remove if somehow present
+        raw_args.pop("importance_sampling_level", None)
+        logger.info("Algorithm: GRPO (token-level importance sampling)")
+
+    raw_args.setdefault("loss_type", "grpo")
+    raw_args.setdefault("beta", 0.0)
+    raw_args.setdefault("epsilon", 3e-4)
+    raw_args.setdefault("epsilon_high", 4e-4)
+    raw_args.setdefault("gradient_accumulation_steps", 1)
+    raw_args.setdefault("steps_per_generation", 4)
+    raw_args.setdefault("max_prompt_length", 1024)
+
+    sig = inspect.signature(GRPOConfig.__init__)
+    allowed = set(sig.parameters.keys()) - {"self"}
+    filtered_args = {k: v for k, v in raw_args.items() if k in allowed}
+    dropped = sorted(set(raw_args.keys()) - set(filtered_args.keys()))
+    if dropped:
+        logger.warning("Dropping unsupported GRPOConfig args: %s", dropped)
+
+    logger.info(
+        "Training config | loss_type=%s beta=%s epsilon=%s epsilon_high=%s "
+        "grad_accum=%s steps_per_gen=%s",
+        filtered_args.get("loss_type"),
+        filtered_args.get("beta"),
+        filtered_args.get("epsilon"),
+        filtered_args.get("epsilon_high"),
+        filtered_args.get("gradient_accumulation_steps"),
+        filtered_args.get("steps_per_generation"),
+    )
+
+    return GRPOConfig(**filtered_args)
+
+
+# =============================================================================
+# Main entrypoint
+# =============================================================================
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", "-c", required=True, help="Path to JSON config file")
+    args = parser.parse_args()
+
+    logger = setup_logging()
+    torch.set_float32_matmul_precision("high")
+
+    with open(args.config, "r") as f:
+        cfg: Dict[str, Any] = json.load(f)
+
+    logger.info("Config: %s | algorithm: %s", args.config, cfg.get("algorithm", "gspo"))
+
+    hf_token = cfg.get("hf_token") or os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+    if hf_token:
+        hf_login(token=hf_token)
+        logger.info("Logged into Hugging Face Hub")
+
+    seed = int(cfg.get("data", {}).get("seed", 42))
+    set_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    model, tokenizer = load_policy_and_tokenizer(cfg, logger)
+
+    dcfg = cfg["data"]
+    ds = load_dataset(dcfg, logger)
+
+    for col in ["prompt", "chosen"]:
+        if col not in ds.column_names:
+            raise ValueError(f"Dataset missing required column '{col}'. Found: {ds.column_names}")
+
+    ds = ds.train_test_split(test_size=float(dcfg.get("test_size", 0.02)), seed=seed)
+    train_ds, eval_ds = ds["train"], ds["test"]
+    logger.info("Train/Eval: %d / %d", len(train_ds), len(eval_ds))
+
+    n_tr = int(dcfg.get("smoke_subset_train", 0) or 0)
+    n_ev = int(dcfg.get("smoke_subset_eval", 0) or 0)
+    if n_tr > 0:
+        train_ds = train_ds.select(range(min(n_tr, len(train_ds))))
+        logger.info("Smoke subset train: %d", len(train_ds))
+    if n_ev > 0:
+        eval_ds = eval_ds.select(range(min(n_ev, len(eval_ds))))
+        logger.info("Smoke subset eval: %d", len(eval_ds))
+
+    eos_ids = infer_stop_token_ids(tokenizer)
+    logger.info("pad_token_id=%s eos_ids=%s", tokenizer.pad_token_id, eos_ids)
+
+    system_prompt = dcfg.get("system_prompt", "") or ""
+
+    stop_strings = ["\nUser:", "\nAssistant:", "\n### User:", "\n### Assistant:", "\n<|user|>", "\n<|assistant|>"]
+
+    model_max_len = resolve_model_max_length(tokenizer, model, fallback=2048)
+    max_completion_len = int(cfg.get("trainer", {}).get("max_completion_length", 64))
+    safety_margin = int(cfg.get("trainer", {}).get("length_safety_margin", 8))
+    max_prompt_len = max(32, int(cfg.get("trainer", {}).get("max_prompt_length", 2048)))
+
+    logger.info(
+        "Length guard: model_max=%d completion=%d margin=%d prompt_cap=%d",
+        model_max_len, max_completion_len, safety_margin, max_prompt_len,
+    )
+
+    tokenizer.model_max_length = max_prompt_len
+    cfg.setdefault("trainer", {})["max_prompt_length"] = max_prompt_len
+
+    def map_fn(ex: Dict[str, Any]) -> Dict[str, Any]:
+        raw = ex["prompt"]
+        ex["prompt_raw"] = raw
+        built = build_prompt(tokenizer, system_prompt, raw, prefer_chat_template=True)
+        ex["prompt"] = truncate_prompt_to_max_tokens(tokenizer, built, max_prompt_len)
+        return ex
+
+    train_ds = train_ds.map(map_fn)
+    eval_ds = eval_ds.map(map_fn)
+
+    peft_cfg = cfg.get("peft", {})
+    lora_cfg = None
+    if bool(peft_cfg.get("enabled", True)):
+        lora_cfg = LoraConfig(
+            r=int(peft_cfg.get("r", 8)),
+            lora_alpha=int(peft_cfg.get("lora_alpha", 16)),
+            lora_dropout=float(peft_cfg.get("lora_dropout", 0.05)),
+            target_modules=list(peft_cfg.get("target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"])),
+            bias=str(peft_cfg.get("bias", "none")),
+            task_type=str(peft_cfg.get("task_type", "CAUSAL_LM")),
+        )
+
+    reward_tracker = CombinedReward(cfg, logger)
+    trim_wrapper = make_trim_wrapper(stop_strings)
+    reward_funcs = [trim_wrapper(reward_tracker)]
+
+    training_args = build_training_config(cfg, logger, tokenizer, eos_ids)
+
+    logger.info("model device=%s dtype=%s", next(model.parameters()).device, next(model.parameters()).dtype)
+
+    trainer = DiallmTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_ds,
+        eval_dataset=eval_ds,
+        processing_class=tokenizer,
+        peft_config=lora_cfg,
+        reward_funcs=reward_funcs,
+        reward_tracker=reward_tracker,
+    )
+
+    trainer.train()
+
+    out_dir = trainer.args.output_dir
+    os.makedirs(out_dir, exist_ok=True)
+    trainer.model.save_pretrained(out_dir)
+    tokenizer.save_pretrained(out_dir)
+    logger.info("Saved to %s", out_dir)
+
+    if get_local_rank() == 0:
+        try:
+            logger.info("Sanity generation...")
+            test_prompt = "Write a short friendly reply in British English about making a cup of tea."
+            chat = build_prompt(tokenizer, system_prompt, test_prompt, prefer_chat_template=True)
+            chat = truncate_prompt_to_max_tokens(tokenizer, chat, max_prompt_len)
+            inputs = tokenizer(chat, return_tensors="pt").to(trainer.model.device)
+            with torch.no_grad():
+                gen = trainer.model.generate(
+                    **inputs,
+                    max_new_tokens=int(cfg.get("trainer", {}).get("max_completion_length", 64)),
+                    do_sample=True,
+                    temperature=float(cfg.get("trainer", {}).get("temperature", 0.9)),
+                    top_p=float(cfg.get("trainer", {}).get("top_p", 0.95)),
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=eos_ids,
+                )
+            decoded = tokenizer.decode(gen[0], skip_special_tokens=True)
+            completion = decoded[len(chat):] if decoded.startswith(chat) else decoded
+            logger.info("SANITY:\n%s", hard_trim_completion(completion, stop_strings).strip())
+        except Exception as e:
+            logger.warning("Sanity generation failed (non-fatal): %s", e)
+
+
+if __name__ == "__main__":
+    main()
