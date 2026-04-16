@@ -6,7 +6,7 @@
 # Usage (run from repo root on the cluster):
 #   bash scripts/upload_dpo.sh
 #
-# Requires: HF_TOKEN env var set, huggingface-cli available.
+# Requires: HF_TOKEN env var set, hf (huggingface_hub CLI) available.
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ if [[ -z "${HF_TOKEN:-}" ]]; then
     exit 1
 fi
 
-huggingface-cli login --token "$HF_TOKEN" --add-to-git-credential 2>/dev/null || true
+hf auth login --token "$HF_TOKEN" 2>/dev/null || true
 
 echo "=== DPO Upload Script ==="
 echo "Runs base: $RUNS_BASE"
@@ -64,9 +64,7 @@ for config in "$CONFIGS_DIR"/*.json; do
 
     # Upload to HuggingFace
     echo "  Uploading to $hf_repo ..."
-    huggingface-cli upload "$hf_repo" "$run_dir" . \
-        --repo-type model \
-        --token "$HF_TOKEN"
+    HF_TOKEN="$HF_TOKEN" hf upload "$hf_repo" "$run_dir" . --repo-type model
 
     echo "  Done: $hf_repo"
     echo ""
