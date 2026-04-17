@@ -37,7 +37,7 @@ COMMON_COMET = {
     "comet_model_name": "Unbabel/wmt22-comet-da",
     "comet_batch_size": 2,
     "comet_force_cpu": False,
-    "comet_device_id": 3,  # pin COMET to GPU 3, outside the device_map=auto spread on GPUs 0-2
+    "comet_device_id": 0,  # pin COMET to GPU 0 (A100)
     "sim_model_name": "sentence-transformers/all-MiniLM-L6-v2",
     "verbose_examples": 2,
 }
