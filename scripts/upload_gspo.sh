@@ -16,8 +16,8 @@ SCRATCH="${SCRATCH:-/mnt/fast/nobackup/scratch4weeks/$USER}"
 RUNS_BASE="$SCRATCH/repos/diallm-rl/runs"
 NAMESPACE="jordanpainter"
 
-# Runs not yet ready — skip these
-SKIP=("qwen" "qwen_aus" "qwen_brit")
+# Only upload these runs (reupload pass)
+ALLOWLIST=("llama" "qwen_ind")
 
 if [[ -z "${HF_TOKEN:-}" ]]; then
     echo "ERROR: HF_TOKEN is not set. Export it before running this script."
@@ -33,16 +33,16 @@ echo ""
 for config in "$CONFIGS_DIR"/*.json; do
     name="$(basename "$config" .json)"
 
-    # Skip unready runs
-    skip=false
-    for s in "${SKIP[@]}"; do
-        if [[ "$name" == "$s" ]]; then
-            skip=true
+    # Only process allowlisted runs
+    allowed=false
+    for a in "${ALLOWLIST[@]}"; do
+        if [[ "$name" == "$a" ]]; then
+            allowed=true
             break
         fi
     done
-    if $skip; then
-        echo "--- $name --- SKIPPED (not ready)"
+    if ! $allowed; then
+        echo "--- $name --- SKIPPED"
         echo ""
         continue
     fi
