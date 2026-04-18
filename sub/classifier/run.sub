@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=classifier_inference
-#SBATCH --partition=a100
+#SBATCH --partition=nice-project
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=20G
