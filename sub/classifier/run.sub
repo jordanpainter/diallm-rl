@@ -1,0 +1,66 @@
+#!/bin/bash
+#SBATCH --job-name=classifier_inference
+#SBATCH --partition=a100
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=20G
+#SBATCH --time=00:30:00
+#SBATCH --output=/mnt/fast/nobackup/scratch4weeks/%u/repos/diallm-rl/logs/%x.%N.%j.out
+#SBATCH --error=/mnt/fast/nobackup/scratch4weeks/%u/repos/diallm-rl/logs/%x.%N.%j.err
+
+set -euo pipefail
+
+SCRATCH=/mnt/fast/nobackup/scratch4weeks/$USER
+SIF="$SCRATCH/dialect-grpo-qwen-cu121.sif"
+REPO="$SCRATCH/repos/diallm-rl"
+INPUT="$SCRATCH/annotation_responses.jsonl"
+OUTPUT="$SCRATCH/annotation_responses_classified.jsonl"
+
+mkdir -p \
+  "$REPO/logs" \
+  "$SCRATCH/tmp" \
+  "$SCRATCH/hf/hub"
+
+export HF_HOME="$SCRATCH/hf"
+export HUGGINGFACE_HUB_CACHE="$SCRATCH/hf/hub"
+export HF_DATASETS_CACHE="$SCRATCH/hf/datasets"
+export TRANSFORMERS_CACHE="$SCRATCH/hf/transformers"
+export HF_HUB_ENABLE_HF_TRANSFER=0
+export HF_TOKEN="${HF_TOKEN:-}"
+
+export TMPDIR="$SCRATCH/tmp"
+export TEMP="$SCRATCH/tmp"
+export TMP="$SCRATCH/tmp"
+export TOKENIZERS_PARALLELISM=false
+
+echo "HOST=$(hostname)"
+echo "INPUT=$INPUT"
+echo "OUTPUT=$OUTPUT"
+
+nvidia-smi
+
+apptainer exec --nv "$SIF" bash -lc "
+    set -euo pipefail
+
+    export HF_HOME='$HF_HOME'
+    export HUGGINGFACE_HUB_CACHE='$HUGGINGFACE_HUB_CACHE'
+    export HF_DATASETS_CACHE='$HF_DATASETS_CACHE'
+    export TRANSFORMERS_CACHE='$TRANSFORMERS_CACHE'
+    export HF_HUB_ENABLE_HF_TRANSFER='$HF_HUB_ENABLE_HF_TRANSFER'
+    export HF_TOKEN='$HF_TOKEN'
+
+    export TMPDIR='$TMPDIR'
+    export TEMP='$TEMP'
+    export TMP='$TMP'
+    export TOKENIZERS_PARALLELISM='$TOKENIZERS_PARALLELISM'
+
+    export PYTHONPATH='$REPO':\${PYTHONPATH:-}
+
+    cd '$REPO'
+
+    python3 scripts/run_classifier_inference.py \
+        --input  '$INPUT' \
+        --output '$OUTPUT'
+"
+
+echo "Done. Output at $OUTPUT"
