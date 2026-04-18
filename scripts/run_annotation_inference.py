@@ -129,16 +129,10 @@ def log(msg: str):
 
 
 def load_tokenizer(model_info: dict) -> AutoTokenizer:
+    # For base/CPT models with a template_source, use the instruct tokenizer
+    # directly — vocab is identical since they start from the same base.
     source = model_info.get("template_source") or model_info["model_id"]
-    tok = AutoTokenizer.from_pretrained(source, trust_remote_code=True)
-    if source != model_info["model_id"]:
-        # Copy chat template onto a fresh tokenizer for the actual model vocab
-        actual_tok = AutoTokenizer.from_pretrained(
-            model_info["model_id"], trust_remote_code=True
-        )
-        actual_tok.chat_template = tok.chat_template
-        return actual_tok
-    return tok
+    return AutoTokenizer.from_pretrained(source, trust_remote_code=True)
 
 
 def build_prompt(tokenizer: AutoTokenizer, user_text: str, family: str) -> str:
@@ -240,24 +234,31 @@ def main():
     parser.add_argument("--prompts", default="annotation_prompt_candidates.json")
     parser.add_argument("--output",  default="annotation_responses.jsonl")
     parser.add_argument("--log",     default="annotation_inference.log")
+    parser.add_argument("--stages",  nargs="*", default=None,
+                        help="Restrict to specific stages e.g. --stages cpt base")
     args = parser.parse_args()
 
     setup_logging(args.log)
     log(f"Output : {args.output}")
     log(f"Log    : {args.log}")
-    log(f"Models : {len(MODELS)}")
+    log(f"Models : {len(MODELS)} total")
 
     with open(args.prompts, encoding="utf-8") as f:
         prompts = json.load(f)
     log(f"Prompts: {len(prompts)}\n")
+
+    models = MODELS
+    if args.stages:
+        models = [m for m in MODELS if m["stage"] in args.stages]
+        log(f"Filtering to stages {args.stages} — {len(models)} models\n")
 
     already_done = load_done(args.output)
     if already_done:
         log(f"Resuming — {len(already_done)} records already written\n")
 
     with open(args.output, "a", encoding="utf-8") as out_file:
-        for i, model_info in enumerate(MODELS):
-            log(f"=== Model {i+1}/{len(MODELS)}: {model_info['model_id']} ===")
+        for i, model_info in enumerate(models):
+            log(f"=== Model {i+1}/{len(models)}: {model_info['model_id']} ===")
             try:
                 run_model(model_info, prompts, out_file, already_done)
             except Exception as e:
