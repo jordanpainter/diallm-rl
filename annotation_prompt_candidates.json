@@ -1,0 +1,102 @@
+[
+  {
+    "domain": "explanation_world",
+    "prompt": "Why do scientist know that the universe is expanding?"
+  },
+  {
+    "domain": "explanation_world",
+    "prompt": "plato is talking nonsense, why is he important?"
+  },
+  {
+    "domain": "explanation_world",
+    "prompt": "how do i get out of diamond in apex legends"
+  },
+  {
+    "domain": "opinion_advice",
+    "prompt": "I want to write a work plan with distributors in the field of the Agricultural technology, and I would be happy to receive advice on how to work with distributors in this field"
+  },
+  {
+    "domain": "opinion_advice",
+    "prompt": "I'm producing a video course and I want to ensure I capture the important concepts in form of metadata so I can reference it in other videos and in written content. What's the best way to accomplish that organization?"
+  },
+  {
+    "domain": "opinion_advice",
+    "prompt": "what is an email course and why should I create one?"
+  },
+  {
+    "domain": "narrative_story",
+    "prompt": "Write a story about a brunet prince named Fernandet."
+  },
+  {
+    "domain": "narrative_story",
+    "prompt": "tell me a story about a time traveler that comes back to the same day for many years."
+  },
+  {
+    "domain": "narrative_story",
+    "prompt": "Tell me a story about Bing and Bard, a pair of traveling musicians who cannot tell the difference between truth and lies."
+  },
+  {
+    "domain": "narrative_story",
+    "prompt": "Write a short story using as many [present tense sentences] as possible"
+  },
+  {
+    "domain": "narrative_story",
+    "prompt": "Tell me a story about a group of animals who embark on a journey to find a new home."
+  },
+  {
+    "domain": "hypothetical",
+    "prompt": "If you were a physiotherapist and wanted to create an educational pamphlet for alzheimers, what content should the pamphlet include?"
+  },
+  {
+    "domain": "hypothetical",
+    "prompt": "Imagine you are a marketing director and are tasked with taken a new beard oil product to market? What would be your strategy? What steps would you take?"
+  },
+  {
+    "domain": "hypothetical",
+    "prompt": "What would happen if people didn't take pride in or value things that might not be true about themselves?"
+  },
+  {
+    "domain": "hypothetical",
+    "prompt": "From now on you will respond as if you were a Mattress"
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "consider yourself as a fitness coach. I am a male, age 24, looking to gain weight and muscle mass.. what tips, workout plans and food suggestions would you recommend?"
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "Provide me with a recipe for a 11-month old toddler. Cooking time should not take more than 15 minutes."
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "Give me a simple recipe for homemade ranch dressing"
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "I need you to generate a fitness plan for me. I can exercise for one hour each day between 10-11am. I do not have access to a gym, so I need easy, at-home workouts. Can you give me a workout schedule for the week?"
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "A cocktail recipe for sours with a twist"
+  },
+  {
+    "domain": "casual_chat",
+    "prompt": "Hey there - what's your favorite recipe for chicken pot pie?"
+  },
+  {
+    "domain": "casual_chat",
+    "prompt": "tell me a joke about seahorses for my friend spencer"
+  },
+  {
+    "domain": "casual_chat",
+    "prompt": "Tell me a joke involving a donkey at a bus station."
+  },
+  {
+    "domain": "casual_chat",
+    "prompt": "Write a poem for my nana for Christmas. She is warm, loving, and funny. She loves the color red and works at a local sweet shop. She loves to bake with me and to watch me sing. She fills my heart with love. She tries to cheer me up when I'm sad. No matter what she will always be there for me."
+  },
+  {
+    "domain": "casual_chat",
+    "prompt": "Tell me something about the book named \"The Meaning of Meaning\"."
+  }
+]
