@@ -137,6 +137,7 @@ def main():
         num_labels=len(LABELS),
         id2label=id2label,
         label2id=label2id,
+        use_safetensors=True,
     )
 
     # --- Metrics ---
