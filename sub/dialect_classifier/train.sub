@@ -66,9 +66,9 @@ apptainer exec --nv "$SIF" bash -lc "
     python3 scripts/train_dialect_classifier.py \
         --output_dir '$OUTPUT' \
         --epochs 5 \
-        --batch_size 32 \
+        --batch_size 16 \
         --lr 2e-5 \
-        --max_length 256 \
+        --max_length 512 \
         --push_to_hub
 "
 

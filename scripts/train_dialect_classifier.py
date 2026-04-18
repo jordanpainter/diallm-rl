@@ -33,7 +33,7 @@ import torch
 
 
 LABELS = ["en-AU", "en-IN", "en-UK"]
-MODEL_NAME = "roberta-base"
+MODEL_NAME = "microsoft/deberta-v3-base"
 HF_REPO = "jordanpainter/diallm-dialect-classifier"
 
 
