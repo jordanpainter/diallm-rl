@@ -1,0 +1,118 @@
+#!/bin/bash
+#SBATCH --job-name=annotation_llama_dialect_rerun
+#SBATCH --partition=a100
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=80G
+#SBATCH --time=06:00:00
+#SBATCH --output=/mnt/fast/nobackup/scratch4weeks/%u/repos/diallm-rl/logs/%x.%N.%j.out
+#SBATCH --error=/mnt/fast/nobackup/scratch4weeks/%u/repos/diallm-rl/logs/%x.%N.%j.err
+
+set -euo pipefail
+
+SCRATCH=/mnt/fast/nobackup/scratch4weeks/$USER
+SIF="$SCRATCH/dialect-grpo-qwen-cu121.sif"
+REPO="$SCRATCH/repos/diallm-rl"
+PROMPTS="$REPO/annotation_prompt_candidates.json"
+ORIGINAL="$SCRATCH/annotation_responses.jsonl"
+CLEANED="$SCRATCH/annotation_responses_clean.jsonl"
+OUTPUT="$SCRATCH/annotation_responses.jsonl"
+LOG="$SCRATCH/annotation_llama_dialect_rerun.log"
+
+mkdir -p \
+  "$REPO/logs" \
+  "$SCRATCH/tmp" \
+  "$SCRATCH/hf/hub" \
+  "$SCRATCH/hf/datasets" \
+  "$SCRATCH/hf/transformers"
+
+export HF_HOME="$SCRATCH/hf"
+export HUGGINGFACE_HUB_CACHE="$SCRATCH/hf/hub"
+export HF_DATASETS_CACHE="$SCRATCH/hf/datasets"
+export TRANSFORMERS_CACHE="$SCRATCH/hf/transformers"
+export HF_HUB_ENABLE_HF_TRANSFER=0
+export HF_TOKEN="${HF_TOKEN:-}"
+
+export TMPDIR="$SCRATCH/tmp"
+export TEMP="$SCRATCH/tmp"
+export TMP="$SCRATCH/tmp"
+export TOKENIZERS_PARALLELISM=false
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+echo "HOST=$(hostname)"
+echo "OUTPUT=$OUTPUT"
+echo "LOG=$LOG"
+
+nvidia-smi
+
+# Strip all Llama dialect-specific records from the existing JSONL so they
+# get regenerated cleanly with the EOS fix applied.
+python3 - <<'PYEOF'
+import json, os
+
+src  = os.environ["ORIGINAL"]
+dst  = os.environ["CLEANED"]
+
+LLAMA_DIALECT_MODELS = {
+    "jordanpainter/diallm-llama-sft-aus",
+    "jordanpainter/diallm-llama-sft-brit",
+    "jordanpainter/diallm-llama-sft-ind",
+    "jordanpainter/diallm-llama-dpo-aus",
+    "jordanpainter/diallm-llama-dpo-brit",
+    "jordanpainter/diallm-llama-dpo-ind",
+    "jordanpainter/diallm-llama-grpo-aus",
+    "jordanpainter/diallm-llama-grpo-brit",
+    "jordanpainter/diallm-llama-grpo-ind",
+    "jordanpainter/diallm-llama-gspo-aus",
+    "jordanpainter/diallm-llama-gspo-brit",
+    "jordanpainter/diallm-llama-gspo-ind",
+}
+
+kept = 0
+dropped = 0
+with open(src, encoding="utf-8") as f_in, open(dst, "w", encoding="utf-8") as f_out:
+    for line in f_in:
+        r = json.loads(line)
+        if r["model_id"] in LLAMA_DIALECT_MODELS:
+            dropped += 1
+        else:
+            f_out.write(line)
+            kept += 1
+
+print(f"Kept {kept}, dropped {dropped} Llama dialect records")
+PYEOF
+
+# Use the cleaned file as the base for the rerun
+cp "$CLEANED" "$OUTPUT"
+
+apptainer exec --nv "$SIF" bash -lc "
+    set -euo pipefail
+
+    export HF_HOME='$HF_HOME'
+    export HUGGINGFACE_HUB_CACHE='$HUGGINGFACE_HUB_CACHE'
+    export HF_DATASETS_CACHE='$HF_DATASETS_CACHE'
+    export TRANSFORMERS_CACHE='$TRANSFORMERS_CACHE'
+    export HF_HUB_ENABLE_HF_TRANSFER='$HF_HUB_ENABLE_HF_TRANSFER'
+    export HF_TOKEN='$HF_TOKEN'
+
+    export TMPDIR='$TMPDIR'
+    export TEMP='$TEMP'
+    export TMP='$TMP'
+    export TOKENIZERS_PARALLELISM='$TOKENIZERS_PARALLELISM'
+    export PYTORCH_CUDA_ALLOC_CONF='$PYTORCH_CUDA_ALLOC_CONF'
+
+    export PYTHONPATH='$REPO':\${PYTHONPATH:-}
+
+    cd '$REPO'
+
+    python3 --version
+    python3 -c \"import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())\"
+
+    python3 scripts/run_annotation_inference.py \
+        --prompts '$PROMPTS' \
+        --output  '$OUTPUT' \
+        --log     '$LOG' \
+        --stages  sft dpo grpo gspo
+"
+
+echo "Done. Output: $OUTPUT"

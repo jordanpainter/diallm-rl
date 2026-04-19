@@ -164,6 +164,16 @@ def run_model(model_info: dict, prompts: list, out_file, already_done: set):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # Build EOS token list including chat-template stop tokens
+    eos_ids = []
+    if tokenizer.eos_token_id is not None:
+        eos_ids.append(int(tokenizer.eos_token_id))
+    for tok in ["<|eot_id|>", "<|end_of_turn|>", "<end_of_turn>"]:
+        tid = tokenizer.convert_tokens_to_ids(tok)
+        if tid and tid != tokenizer.unk_token_id:
+            eos_ids.append(int(tid))
+    eos_ids = list(dict.fromkeys(eos_ids))  # deduplicate, preserve order
+
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=torch.bfloat16,
@@ -171,7 +181,7 @@ def run_model(model_info: dict, prompts: list, out_file, already_done: set):
         trust_remote_code=True,
     )
     model.eval()
-    log(f"  Loaded in {time.time() - t0:.1f}s")
+    log(f"  Loaded in {time.time() - t0:.1f}s | eos_ids={eos_ids}")
 
     for idx, item in enumerate(prompts):
         key = (model_id, idx)
@@ -189,6 +199,7 @@ def run_model(model_info: dict, prompts: list, out_file, already_done: set):
                 do_sample=False,
                 temperature=None,
                 top_p=None,
+                eos_token_id=eos_ids,
                 pad_token_id=tokenizer.pad_token_id,
             )
 
