@@ -103,7 +103,7 @@ MODELS = [
 ]
 
 SYSTEM_PROMPT = "You are a helpful assistant."
-MAX_NEW_TOKENS = 512
+MAX_NEW_TOKENS = 256
 
 
 def setup_logging(log_path: str):
