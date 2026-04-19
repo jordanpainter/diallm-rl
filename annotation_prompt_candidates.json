@@ -1,7 +1,7 @@
 [
   {
     "domain": "casual_chat",
-    "prompt": "What's your go-to comfort meal when you've had a rough day?"
+    "prompt": "What's a good comfort meal after a rough day?"
   },
   {
     "domain": "casual_chat",
@@ -9,15 +9,15 @@
   },
   {
     "domain": "casual_chat",
-    "prompt": "What's your take on people who are always late?"
+    "prompt": "What do you make of people who are always late?"
   },
   {
     "domain": "casual_chat",
-    "prompt": "How do you usually wind down at the end of the day?"
+    "prompt": "What are some good ways to wind down at the end of a long day?"
   },
   {
     "domain": "casual_chat",
-    "prompt": "What's the best piece of advice someone's ever given you?"
+    "prompt": "What's a piece of advice that tends to really stick with people?"
   },
   {
     "domain": "opinion",
@@ -41,11 +41,11 @@
   },
   {
     "domain": "food_lifestyle",
-    "prompt": "What's a simple meal you'd recommend for someone just learning to cook?"
+    "prompt": "What's a simple meal worth recommending to someone just learning to cook?"
   },
   {
     "domain": "food_lifestyle",
-    "prompt": "What's your favourite thing to eat on a lazy Sunday morning?"
+    "prompt": "What's a good thing to eat on a lazy Sunday morning?"
   },
   {
     "domain": "food_lifestyle",
@@ -53,11 +53,11 @@
   },
   {
     "domain": "food_lifestyle",
-    "prompt": "What do you usually have for breakfast?"
+    "prompt": "What's a good breakfast to start the day right?"
   },
   {
     "domain": "food_lifestyle",
-    "prompt": "What's a dish you think everyone should try at least once?"
+    "prompt": "What's a dish that everyone should try at least once?"
   },
   {
     "domain": "hypothetical",
@@ -81,22 +81,22 @@
   },
   {
     "domain": "personal",
-    "prompt": "Tell me about a hobby you've picked up recently and what you enjoy about it."
+    "prompt": "What's a hobby worth picking up, and what makes it enjoyable?"
   },
   {
     "domain": "personal",
-    "prompt": "What's something small that always manages to brighten your day?"
+    "prompt": "What are some small things that can brighten up a rough day?"
   },
   {
     "domain": "personal",
-    "prompt": "Describe your ideal Saturday from morning to night."
+    "prompt": "What would an ideal Saturday look like from morning to night?"
   },
   {
     "domain": "personal",
-    "prompt": "What's a TV show or film you've recommended to loads of people?"
+    "prompt": "What's a TV show or film worth recommending to everyone?"
   },
   {
     "domain": "personal",
-    "prompt": "What's the most useful thing you've learned that you didn't expect to need?"
+    "prompt": "What's a surprisingly useful thing to know that most people don't think about?"
   }
 ]
