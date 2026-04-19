@@ -38,6 +38,8 @@ export TEMP="$SCRATCH/tmp"
 export TMP="$SCRATCH/tmp"
 export TOKENIZERS_PARALLELISM=false
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export ORIGINAL="$SCRATCH/annotation_responses.jsonl"
+export CLEANED="$SCRATCH/annotation_responses_clean.jsonl"
 
 echo "HOST=$(hostname)"
 echo "OUTPUT=$OUTPUT"
