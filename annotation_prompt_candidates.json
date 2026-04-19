@@ -1,102 +1,102 @@
 [
   {
-    "domain": "explanation_world",
-    "prompt": "Why do scientist know that the universe is expanding?"
+    "domain": "casual_chat",
+    "prompt": "What's your go-to comfort meal when you've had a rough day?"
   },
   {
-    "domain": "explanation_world",
-    "prompt": "plato is talking nonsense, why is he important?"
+    "domain": "casual_chat",
+    "prompt": "What do you reckon makes a good night out with mates?"
   },
   {
-    "domain": "explanation_world",
-    "prompt": "how do i get out of diamond in apex legends"
+    "domain": "casual_chat",
+    "prompt": "What's your take on people who are always late?"
   },
   {
-    "domain": "opinion_advice",
-    "prompt": "I want to write a work plan with distributors in the field of the Agricultural technology, and I would be happy to receive advice on how to work with distributors in this field"
+    "domain": "casual_chat",
+    "prompt": "How do you usually wind down at the end of the day?"
   },
   {
-    "domain": "opinion_advice",
-    "prompt": "I'm producing a video course and I want to ensure I capture the important concepts in form of metadata so I can reference it in other videos and in written content. What's the best way to accomplish that organization?"
+    "domain": "casual_chat",
+    "prompt": "What's the best piece of advice someone's ever given you?"
   },
   {
-    "domain": "opinion_advice",
-    "prompt": "what is an email course and why should I create one?"
+    "domain": "opinion",
+    "prompt": "Do you think it's better to live in the city or the countryside?"
   },
   {
-    "domain": "narrative_story",
-    "prompt": "Write a story about a brunet prince named Fernandet."
+    "domain": "opinion",
+    "prompt": "What do you think about people who just order takeaway every night instead of cooking?"
   },
   {
-    "domain": "narrative_story",
-    "prompt": "tell me a story about a time traveler that comes back to the same day for many years."
+    "domain": "opinion",
+    "prompt": "Is it worth spending a lot of money on a gym membership, or can you stay fit without one?"
   },
   {
-    "domain": "narrative_story",
-    "prompt": "Tell me a story about Bing and Bard, a pair of traveling musicians who cannot tell the difference between truth and lies."
+    "domain": "opinion",
+    "prompt": "What's the most overrated tourist destination in your opinion?"
   },
   {
-    "domain": "narrative_story",
-    "prompt": "Write a short story using as many [present tense sentences] as possible"
+    "domain": "opinion",
+    "prompt": "Do you think social media does more harm than good?"
   },
   {
-    "domain": "narrative_story",
-    "prompt": "Tell me a story about a group of animals who embark on a journey to find a new home."
+    "domain": "food_lifestyle",
+    "prompt": "What's a simple meal you'd recommend for someone just learning to cook?"
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "What's your favourite thing to eat on a lazy Sunday morning?"
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "Any tips for eating well without spending a fortune?"
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "What do you usually have for breakfast?"
+  },
+  {
+    "domain": "food_lifestyle",
+    "prompt": "What's a dish you think everyone should try at least once?"
   },
   {
     "domain": "hypothetical",
-    "prompt": "If you were a physiotherapist and wanted to create an educational pamphlet for alzheimers, what content should the pamphlet include?"
+    "prompt": "If you could only eat one meal for the rest of your life, what would it be and why?"
   },
   {
     "domain": "hypothetical",
-    "prompt": "Imagine you are a marketing director and are tasked with taken a new beard oil product to market? What would be your strategy? What steps would you take?"
+    "prompt": "If you had a free weekend with no plans or obligations, how would you spend it?"
   },
   {
     "domain": "hypothetical",
-    "prompt": "What would happen if people didn't take pride in or value things that might not be true about themselves?"
+    "prompt": "If you could live anywhere in the world, where would you pick and why?"
   },
   {
     "domain": "hypothetical",
-    "prompt": "From now on you will respond as if you were a Mattress"
+    "prompt": "If you could only keep three apps on your phone, which would you choose?"
   },
   {
-    "domain": "food_lifestyle",
-    "prompt": "consider yourself as a fitness coach. I am a male, age 24, looking to gain weight and muscle mass.. what tips, workout plans and food suggestions would you recommend?"
+    "domain": "hypothetical",
+    "prompt": "If a friend asked you to help them move house, what would you bring to make the day easier?"
   },
   {
-    "domain": "food_lifestyle",
-    "prompt": "Provide me with a recipe for a 11-month old toddler. Cooking time should not take more than 15 minutes."
+    "domain": "personal",
+    "prompt": "Tell me about a hobby you've picked up recently and what you enjoy about it."
   },
   {
-    "domain": "food_lifestyle",
-    "prompt": "Give me a simple recipe for homemade ranch dressing"
+    "domain": "personal",
+    "prompt": "What's something small that always manages to brighten your day?"
   },
   {
-    "domain": "food_lifestyle",
-    "prompt": "I need you to generate a fitness plan for me. I can exercise for one hour each day between 10-11am. I do not have access to a gym, so I need easy, at-home workouts. Can you give me a workout schedule for the week?"
+    "domain": "personal",
+    "prompt": "Describe your ideal Saturday from morning to night."
   },
   {
-    "domain": "food_lifestyle",
-    "prompt": "A cocktail recipe for sours with a twist"
+    "domain": "personal",
+    "prompt": "What's a TV show or film you've recommended to loads of people?"
   },
   {
-    "domain": "casual_chat",
-    "prompt": "Hey there - what's your favorite recipe for chicken pot pie?"
-  },
-  {
-    "domain": "casual_chat",
-    "prompt": "tell me a joke about seahorses for my friend spencer"
-  },
-  {
-    "domain": "casual_chat",
-    "prompt": "Tell me a joke involving a donkey at a bus station."
-  },
-  {
-    "domain": "casual_chat",
-    "prompt": "Write a poem for my nana for Christmas. She is warm, loving, and funny. She loves the color red and works at a local sweet shop. She loves to bake with me and to watch me sing. She fills my heart with love. She tries to cheer me up when I'm sad. No matter what she will always be there for me."
-  },
-  {
-    "domain": "casual_chat",
-    "prompt": "Tell me something about the book named \"The Meaning of Meaning\"."
+    "domain": "personal",
+    "prompt": "What's the most useful thing you've learned that you didn't expect to need?"
   }
 ]

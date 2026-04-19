@@ -44,6 +44,10 @@ echo "REPO=$REPO"
 echo "OUTPUT=$OUTPUT"
 echo "LOG=$LOG"
 
+# Wipe existing responses — prompts have changed, all records are stale
+rm -f "$OUTPUT"
+echo "Cleared existing $OUTPUT"
+
 nvidia-smi
 
 apptainer exec --nv "$SIF" bash -lc "
