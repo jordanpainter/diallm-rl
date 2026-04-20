@@ -24,7 +24,7 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-RESPONSES_FILE = Path(__file__).parent.parent / "annotation_responses.jsonl"
+RESPONSES_FILE = Path(__file__).parent / "data" / "responses.jsonl"
 FAMILY = "llama"
 SEED   = 42
 
