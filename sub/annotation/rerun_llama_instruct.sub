@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=annotation_llama_instruct
-#SBATCH --partition=nice-project
+#SBATCH --partition=rtx8000
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=40G
@@ -60,8 +60,7 @@ apptainer exec --nv "$SIF" bash -lc "
         --prompts '$PROMPTS' \
         --output  '$OUTPUT' \
         --log     '$LOG' \
-        --stages  instruct \
-        --families llama
+        --stages  instruct
 "
 
 echo "Done. Output: $OUTPUT"
