@@ -154,12 +154,34 @@ FEATURE_SYSTEM = (
     "Use these features to guide your judgements."
 )
 
+FEATURE_GUIDED_SYSTEM = (
+    "You are a linguistics expert specialising in {dialect_name} English. "
+    "The following are documented morphosyntactic and lexical features of this variety "
+    "according to the Electronic World Atlas of Varieties of English (eWAVE):\n\n"
+    "{feature_list}\n\n"
+    "Your task is to identify which response contains more features of {dialect_name} English. "
+    "Do NOT judge on fluency, grammar, or overall writing quality — focus exclusively on "
+    "dialectal authenticity. Even a single dialectal feature is meaningful evidence."
+)
+
 PAIR_USER = (
     "A speaker was given the following prompt:\n\"{prompt}\"\n\n"
     "Here are two responses:\n\n"
     "Response A:\n{resp_a}\n\n"
     "Response B:\n{resp_b}\n\n"
     "{question} "
+    "Reply with exactly one word: A, B, or Tie."
+)
+
+PAIR_USER_GUIDED = (
+    "A speaker was given the following prompt:\n\"{prompt}\"\n\n"
+    "Here are two responses:\n\n"
+    "Response A:\n{resp_a}\n\n"
+    "Response B:\n{resp_b}\n\n"
+    "{question} "
+    "Check each response specifically for the dialectal features listed above. "
+    "Ignore fluency and writing quality entirely — choose the response that contains "
+    "more features of {dialect_name} English, even if those features are subtle or rare. "
     "Reply with exactly one word: A, B, or Tie."
 )
 
@@ -173,6 +195,19 @@ TRIPLE_USER = (
     "Reply with exactly one letter: A, B, or C."
 )
 
+TRIPLE_USER_GUIDED = (
+    "A speaker was given the following prompt:\n\"{prompt}\"\n\n"
+    "Here are three responses:\n\n"
+    "Response A:\n{resp_a}\n\n"
+    "Response B:\n{resp_b}\n\n"
+    "Response C:\n{resp_c}\n\n"
+    "{question} "
+    "Check each response specifically for the dialectal features listed above. "
+    "Ignore fluency and writing quality entirely — choose the response that contains "
+    "the most features of {dialect_name} English, even if those features are subtle or rare. "
+    "Reply with exactly one letter: A, B, or C."
+)
+
 
 def build_feature_list(dialect_name):
     feats = FEATURES.get(dialect_name, [])
@@ -181,31 +216,43 @@ def build_feature_list(dialect_name):
 
 
 def build_messages(condition, dialect_name, trial, task):
+    feature_list = build_feature_list(dialect_name)
+
     if condition == "expert":
         system = EXPERT_SYSTEM.format(dialect_name=dialect_name)
-    else:
+    elif condition == "feature":
         system = FEATURE_SYSTEM.format(
             dialect_name=dialect_name,
-            feature_list=build_feature_list(dialect_name),
+            feature_list=feature_list,
+        )
+    else:  # feature_guided
+        system = FEATURE_GUIDED_SYSTEM.format(
+            dialect_name=dialect_name,
+            feature_list=feature_list,
         )
 
     question = task["question"].format(dialect_name=dialect_name)
 
+    fmt = dict(dialect_name=dialect_name)
     if trial["task_type"] == "pair":
-        user = PAIR_USER.format(
+        template = PAIR_USER_GUIDED if condition == "feature_guided" else PAIR_USER
+        user = template.format(
             prompt=trial["prompt"],
             resp_a=trial["left_resp"],
             resp_b=trial["right_resp"],
             question=question,
+            **fmt,
         )
     else:
+        template = TRIPLE_USER_GUIDED if condition == "feature_guided" else TRIPLE_USER
         opts = trial["options"]
-        user = TRIPLE_USER.format(
+        user = template.format(
             prompt=trial["prompt"],
             resp_a=opts[0]["response"],
             resp_b=opts[1]["response"],
             resp_c=opts[2]["response"],
             question=question,
+            **fmt,
         )
 
     return [{"role": "system", "content": system},
@@ -366,7 +413,7 @@ def main():
     model.eval()
     log.info("Model loaded")
 
-    conditions = ["expert", "feature"]
+    conditions = ["expert", "feature", "feature_guided"]
 
     with open(out_path, "a", encoding="utf-8") as f_out:
         for dialect_name, dialect_code in dialects_to_run.items():
