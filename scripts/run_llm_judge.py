@@ -154,6 +154,15 @@ FEATURE_SYSTEM = (
     "Use these features to guide your judgements."
 )
 
+EXPERT_GUIDED_SYSTEM = (
+    "You are a linguistics expert specialising in {dialect_name} English. "
+    "You have in-depth knowledge of the phonological, morphological, syntactic, "
+    "and lexical features that distinguish this variety from Standard English. "
+    "Your task is to identify which response contains more features of {dialect_name} English. "
+    "Do NOT judge on fluency, grammar, or overall writing quality — focus exclusively on "
+    "dialectal authenticity. Even a single dialectal feature is meaningful evidence."
+)
+
 FEATURE_GUIDED_SYSTEM = (
     "You are a linguistics expert specialising in {dialect_name} English. "
     "The following are documented morphosyntactic and lexical features of this variety "
@@ -220,6 +229,8 @@ def build_messages(condition, dialect_name, trial, task):
 
     if condition == "expert":
         system = EXPERT_SYSTEM.format(dialect_name=dialect_name)
+    elif condition == "expert_guided":
+        system = EXPERT_GUIDED_SYSTEM.format(dialect_name=dialect_name)
     elif condition == "feature":
         system = FEATURE_SYSTEM.format(
             dialect_name=dialect_name,
@@ -234,8 +245,9 @@ def build_messages(condition, dialect_name, trial, task):
     question = task["question"].format(dialect_name=dialect_name)
 
     fmt = dict(dialect_name=dialect_name)
+    guided = condition in ("expert_guided", "feature_guided")
     if trial["task_type"] == "pair":
-        template = PAIR_USER_GUIDED if condition == "feature_guided" else PAIR_USER
+        template = PAIR_USER_GUIDED if guided else PAIR_USER
         user = template.format(
             prompt=trial["prompt"],
             resp_a=trial["left_resp"],
@@ -244,7 +256,7 @@ def build_messages(condition, dialect_name, trial, task):
             **fmt,
         )
     else:
-        template = TRIPLE_USER_GUIDED if condition == "feature_guided" else TRIPLE_USER
+        template = TRIPLE_USER_GUIDED if guided else TRIPLE_USER
         opts = trial["options"]
         user = template.format(
             prompt=trial["prompt"],
@@ -413,7 +425,7 @@ def main():
     model.eval()
     log.info("Model loaded")
 
-    conditions = ["expert", "feature", "feature_guided"]
+    conditions = ["expert", "feature", "expert_guided", "feature_guided"]
 
     with open(out_path, "a", encoding="utf-8") as f_out:
         for dialect_name, dialect_code in dialects_to_run.items():

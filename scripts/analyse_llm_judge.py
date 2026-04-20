@@ -35,7 +35,7 @@ TASK_META = {
 }
 
 DIALECTS    = ["en-AU", "en-IN", "en-UK"]
-CONDITIONS  = ["expert", "feature"]
+CONDITIONS  = ["expert", "expert_guided", "feature", "feature_guided"]
 TASKS       = [1, 2, 3, 4]
 
 
@@ -174,14 +174,14 @@ def main():
         meta = TASK_META[task_id]
         row = f"  {meta['label']:<30}"
         for dialect in DIALECTS:
-            result = win_rate(records, task_id, "feature", dialect, meta["win_stage"])
+            result = win_rate(records, task_id, "feature_guided", dialect, meta["win_stage"])
             row += f"  {fmt_pct(result[3]) if result else 'n/a':>8}"
         print(row)
 
     # Task 3 — show GRPO win rate as summary proxy
     row = f"  {'DPO/GRPO/GSPO (GRPO wins)':<30}"
     for dialect in DIALECTS:
-        result = triple_dist(records, 3, "feature", dialect)
+        result = triple_dist(records, 3, "feature_guided", dialect)
         if result:
             counts, total = result
             grpo = counts.get("grpo", 0)
