@@ -37,6 +37,8 @@ INSTRUCT_TEMPLATES = {
 MODELS = [
     # --- Base ---
     {"model_id": "meta-llama/Llama-3.1-8B",  "stage": "base",  "family": "llama", "variant": "base", "template_source": "meta-llama/Llama-3.1-8B-Instruct"},
+    # --- Instruct baseline (zero-shot reference for annotation) ---
+    {"model_id": "meta-llama/Llama-3.1-8B-Instruct", "stage": "instruct", "family": "llama", "variant": "base", "template_source": None},
     {"model_id": "Qwen/Qwen3-8B",             "stage": "base",  "family": "qwen",  "variant": "base", "template_source": None},
     {"model_id": "google/gemma-3-4b-it",      "stage": "base",  "family": "gemma", "variant": "base", "template_source": None},
 
