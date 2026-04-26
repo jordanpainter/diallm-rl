@@ -1,10 +1,13 @@
 """
 scripts/train_dialect_classifier.py
 
-Fine-tunes RoBERTa-base on BESSTIE-CW-26 as a 3-class dialect classifier
-(en-AU / en-IN / en-UK). All original splits are pooled and re-split
-80/10/10 with stratification so each variety is equally represented in
-dev and test.
+Fine-tunes DeBERTa-v3-base on deduplicated unswnlporg/BESSTIE as a 3-class
+dialect classifier (en-AU / en-IN / en-UK).
+
+Deduplication: texts appearing under multiple varieties are dropped entirely;
+texts appearing under the same variety but multiple tasks are deduplicated to
+one instance. No length filtering is applied. The cleaned dataset is re-split
+80/10/10 with stratification.
 
 Outputs:
   - Best checkpoint saved to --output_dir
@@ -18,9 +21,11 @@ Usage:
 
 import json
 import os
+import random
 import argparse
 import numpy as np
-from datasets import load_dataset, concatenate_datasets, ClassLabel
+from collections import defaultdict, Counter
+from datasets import load_dataset, concatenate_datasets, Dataset
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
@@ -41,21 +46,57 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--output_dir", default="runs/dialect_classifier")
     p.add_argument("--epochs", type=int, default=5)
-    p.add_argument("--batch_size", type=int, default=32)
-    p.add_argument("--lr", type=float, default=2e-5)
-    p.add_argument("--max_length", type=int, default=256)
+    p.add_argument("--batch_size", type=int, default=16)
+    p.add_argument("--lr", type=float, default=1e-5)
+    p.add_argument("--max_length", type=int, default=512)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--push_to_hub", action="store_true", default=True)
     return p.parse_args()
 
 
+def load_and_deduplicate(seed=42):
+    """
+    Load unswnlporg/BESSTIE, deduplicate by text, and return a clean Dataset
+    with only 'text' and 'variety' columns.
+
+    - Texts appearing under more than one variety are dropped entirely.
+    - Texts appearing under one variety but multiple tasks are collapsed to
+      a single instance.
+    """
+    print("Loading unswnlporg/BESSTIE...")
+    raw = load_dataset("unswnlporg/BESSTIE")
+    all_data = concatenate_datasets(list(raw.values()))
+    print(f"Raw rows: {len(all_data)}")
+
+    # Group rows by text
+    text_to_rows = defaultdict(list)
+    for i in range(len(all_data)):
+        row = all_data[i]
+        text_to_rows[row["text"]].append(row)
+
+    clean = []
+    dropped_cross_variety = 0
+    for text, rows in text_to_rows.items():
+        varieties = set(r["variety"] for r in rows)
+        if len(varieties) > 1:
+            # Ambiguous — text assigned to multiple varieties, drop entirely
+            dropped_cross_variety += 1
+            continue
+        clean.append({"text": text, "variety": rows[0]["variety"]})
+
+    print(f"Dropped (cross-variety conflicts): {dropped_cross_variety}")
+    print(f"Clean unique texts: {len(clean)}")
+    print("Variety distribution:", Counter(r["variety"] for r in clean))
+
+    random.seed(seed)
+    random.shuffle(clean)
+    return Dataset.from_list(clean)
+
+
 def stratified_split(dataset, label_col, train_ratio=0.8, val_ratio=0.1, seed=42):
-    """Pool all examples and re-split with stratification."""
-    from collections import defaultdict
-    import random
+    """Re-split dataset with stratification by label."""
     random.seed(seed)
 
-    # Group indices by label
     label_to_indices = defaultdict(list)
     for i, label in enumerate(dataset[label_col]):
         label_to_indices[label].append(i)
@@ -84,25 +125,14 @@ def main():
     label2id = {l: i for i, l in enumerate(LABELS)}
     id2label = {i: l for l, i in label2id.items()}
 
-    # --- Load and pool all splits ---
-    print("Loading BESSTIE-CW-26...")
-    raw = load_dataset("surrey-nlp/BESSTIE-CW-26")
-    all_data = concatenate_datasets([raw["train"], raw["validation"], raw["test"]])
-
-    # Keep only text and variety
-    all_data = all_data.select_columns(["text", "variety"])
+    # --- Load and deduplicate ---
+    all_data = load_and_deduplicate(seed=args.seed)
 
     # Cast variety to int label
     all_data = all_data.map(
         lambda x: {"label": label2id[x["variety"]]},
         remove_columns=["variety"],
     )
-
-    print(f"Total examples: {len(all_data)}")
-    from collections import Counter
-    counts = Counter(all_data["label"])
-    for lid, count in sorted(counts.items()):
-        print(f"  {id2label[lid]}: {count}")
 
     # --- Stratified split ---
     train_ds, val_ds, test_ds = stratified_split(
@@ -175,7 +205,7 @@ def main():
         train_dataset=train_ds,
         eval_dataset=val_ds,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
     print("\nTraining...")
@@ -216,7 +246,6 @@ def main():
         json.dump(metrics, f, indent=2)
     print(f"\nMetrics saved to {metrics_path}")
 
-    # Save label map
     label_map_path = os.path.join(args.output_dir, "label_map.json")
     with open(label_map_path, "w") as f:
         json.dump({"label2id": label2id, "id2label": id2label}, f, indent=2)
