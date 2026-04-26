@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=dialect_classifier
-#SBATCH --partition=a100
+#SBATCH --partition=rtx8000
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
