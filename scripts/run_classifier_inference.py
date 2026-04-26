@@ -42,7 +42,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(CLASSIFIER_REPO)
     model = AutoModelForSequenceClassification.from_pretrained(
         CLASSIFIER_REPO,
-        torch_dtype=torch.float16 if device == "cuda:0" else torch.float32,
+        dtype=torch.float16 if device == "cuda:0" else torch.float32,
     ).to(device)
     model.eval()
     print("Loaded.")
